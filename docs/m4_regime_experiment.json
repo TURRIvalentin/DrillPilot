@@ -1,0 +1,119 @@
+{
+  "regime_score_feature": {
+    "regime_classifier_cv_pool_accuracy": 1.0,
+    "regime_classifier_coefficients": {
+      "MD": 0.06239087260411916,
+      "HD": -0.1194532815520465,
+      "intercept": -0.00030248311533777247
+    },
+    "cv_mae_lowo": 8.2961567469821,
+    "test_pooled": 11.294573280394923,
+    "test_by_well": {
+      "0": 16.188053914550597,
+      "3": 9.107018431802183,
+      "5": 13.923660617417982
+    },
+    "test_by_regime": {
+      "dominante": 10.354962658691816,
+      "atipico": 16.188053914550597
+    },
+    "best_params": {
+      "objective": "mae",
+      "num_leaves": 255,
+      "learning_rate": 0.0168719474996044,
+      "max_depth": 12,
+      "min_child_samples": 100,
+      "colsample_bytree": 0.7733099724742855,
+      "subsample": 0.8398027613673257,
+      "subsample_freq": 6,
+      "reg_alpha": 0.0018383753932832785,
+      "reg_lambda": 2.360510861463174e-05,
+      "n_estimators": 457,
+      "random_state": 42,
+      "verbosity": -1
+    }
+  },
+  "regime_specific_models": {
+    "dominante": {
+      "cv_pool_wells": [
+        2,
+        4
+      ],
+      "test_wells": [
+        3,
+        5
+      ],
+      "cv_pool_rows": 99353,
+      "n_lowo_folds": 2,
+      "cv_mae_lowo": 9.435410277262946,
+      "test_pooled": 9.906124406237865,
+      "test_by_well": {
+        "3": 8.647126504851231,
+        "5": 13.506432131461523
+      },
+      "best_params": {
+        "objective": "mae",
+        "num_leaves": 244,
+        "learning_rate": 0.07270449316754193,
+        "max_depth": 6,
+        "min_child_samples": 6,
+        "colsample_bytree": 0.7627637289427596,
+        "subsample": 0.7876040334076363,
+        "subsample_freq": 6,
+        "reg_alpha": 0.00220909817911224,
+        "reg_lambda": 2.9381713969784266e-08,
+        "n_estimators": 25,
+        "random_state": 42,
+        "verbosity": -1
+      }
+    },
+    "atipico": {
+      "cv_pool_wells": [
+        1,
+        6
+      ],
+      "test_wells": [
+        0
+      ],
+      "cv_pool_rows": 14240,
+      "n_lowo_folds": 2,
+      "cv_mae_lowo": 5.194775345546219,
+      "test_pooled": 10.026936079598583,
+      "test_by_well": {
+        "0": 10.026936079598583
+      },
+      "best_params": {
+        "objective": "mae",
+        "num_leaves": 119,
+        "learning_rate": 0.02692655251486473,
+        "max_depth": 9,
+        "min_child_samples": 18,
+        "colsample_bytree": 0.6460723242676091,
+        "subsample": 0.6831809216468459,
+        "subsample_freq": 5,
+        "reg_alpha": 0.1165691561324743,
+        "reg_lambda": 6.267062696005991e-07,
+        "n_estimators": 705,
+        "random_state": 42,
+        "verbosity": -1
+      }
+    }
+  },
+  "realistic_classifier_routed_system": {
+    "classifier_accuracy_by_well": {
+      "0": 0.16222901207624035,
+      "3": 1.0,
+      "5": 1.0
+    },
+    "test_pooled": 12.008134753753025,
+    "test_by_well": {
+      "0": 22.955378953393843,
+      "3": 8.647126504851231,
+      "5": 13.506432131461523
+    },
+    "test_by_regime": {
+      "dominante": 9.906124406237865,
+      "atipico": 22.955378953393843
+    }
+  }
+}

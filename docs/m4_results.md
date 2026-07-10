@@ -275,3 +275,135 @@ causa de fondo sea la cantidad de pozos disponibles para entrenar (4), no la
 complejidad del modelo por sí sola. Ninguna de las 3 opciones del reporte original
 se implementa acá — sigue siendo una decisión del usuario, ahora con más evidencia
 para tomarla.
+
+## Experimento de régimen (heterogeneidad de régimen en folds chicos, no solo "pocos pozos")
+
+Generado por [`ml/training/diagnose_regime_experiment.py`](../ml/training/diagnose_regime_experiment.py)
+(`python -m ml.training.diagnose_regime_experiment`), guardado en
+[`docs/m4_regime_experiment.json`](m4_regime_experiment.json). No reentrena ni
+reemplaza ningún modelo de M4.
+
+### 1a. LightGBM + feature de régimen (`regime_score`)
+
+`regime_score` = P(régimen dominante | MD, HD), de una regresión logística chica
+fiteada **solo con datos del CV-pool** (nunca test), usando únicamente `MD` y `HD`
+— ambas disponibles en tiempo real durante la perforación (siempre se sabe la
+profundidad actual y el diámetro de broca/hoyo en uso), a diferencia de `well_id`,
+que no tiene significado para un pozo genuinamente nuevo.
+
+**El clasificador separa el CV-pool con 100% de exactitud** — hay un salto limpio de
+MD entre los pozos atípicos del CV-pool (1, 6: máximo 634 m) y los dominantes (2, 4:
+mínimo 988 m), sin superposición. Esto ya es una pista de lo que sigue.
+
+Con esta feature agregada (17 features, mismo protocolo Optuna + LOWO-CV de 4 folds):
+CV MAE=8.30, test pooled=**11.29** — mejor que el modelo completo tuneado (+2.6%)
+pero todavía peor que el dummy (-4.9%). Mejora más en el régimen atípico
+(pozo 0: 16.19, +2.7% vs. dummy, el mejor resultado de un modelo *único* — no
+especializado — en ese pozo) que en el dominante (10.35, sigue detrás del dummy).
+
+### 1b. Dos modelos separados por régimen — el resultado más fuerte de todos los diagnósticos, con una advertencia crítica
+
+Un modelo entrenado **solo** con los pozos dominantes del CV-pool (2, 4; 99,353
+filas; Optuna + LOWO-CV de 2 folds) evaluado solo contra los pozos dominantes de
+test (3, 5). Otro modelo entrenado **solo** con los pozos atípicos del CV-pool
+(1, 6; 14,240 filas; 2 folds) evaluado solo contra el pozo atípico de test (0).
+Esto asume que ya se sabe a qué régimen pertenece cada fila de test — un supuesto
+"oráculo" que se pone a prueba después.
+
+| | CV MAE (2 folds) | Test (régimen propio) | vs. dummy (mismo régimen) | vs. mejor resultado previo en ese régimen |
+|---|---|---|---|---|
+| Modelo dominante (pozos 2,4 → test 3,5) | 9.44 | **9.91** | -2.8% (todavía peor, pero el más cerca visto) | mejor que todas las variantes previas de LightGBM (conservador 10.06, regime_score 10.35, ablation 10.46, tuneado 10.59) |
+| Modelo atípico (pozos 1,6 → test 0) | 5.19 | **10.03** | **+39.7%** (le gana al dummy por mucho) | **+2.9% mejor que B&Y reducido** (10.32, el mejor hasta ahora en ese pozo) |
+
+Por pozo individual, el modelo dominante le gana al dummy en el pozo 5 (13.51 vs.
+13.82, +2.3%) aunque sigue perdiendo en el pozo 3 (8.65 vs. 8.18, -5.7%). El modelo
+atípico es, sin excepción, el mejor resultado de todo M4 en el pozo 0 — mejor que
+B&Y reducido, que hasta ahora era el único modelo que le ganaba al dummy ahí.
+
+**Combinando ambos con el régimen real (conocido, no predicho) de cada pozo de
+test**, el sistema completo da un MAE pooled de **9.93 — 7.8% mejor que el dummy**.
+Es el único enfoque, de todos los diagnósticos corridos hasta ahora, que le gana al
+dummy en pooled.
+
+**La advertencia crítica: ese 7.8% de mejora asume un router perfecto, y el router
+real (el clasificador de 1a) no lo es.** Aplicando el clasificador de `regime_score`
+para decidir, fila por fila, a qué modelo especializado mandar cada fila de test
+(en vez de usar la tabla de régimen conocida de ADR-003):
+
+| Pozo | Exactitud del clasificador |
+|---|---|
+| 3 (dominante) | 100% |
+| 5 (dominante) | 100% |
+| **0 (atípico)** | **16.2%** |
+
+El clasificador manda el 83.8% de las filas del pozo 0 al modelo *dominante* — el
+que nunca vio nada parecido a un pozo atípico. La razón exacta ya estaba anticipada
+en el análisis de ADR-003 y no se tuvo en cuenta al diseñar el experimento: el pozo
+0 llega hasta MD=1206m, que **se superpone** con el rango de MD de los pozos
+dominantes del CV-pool (desde 988m) — la separación "limpia" de 100% en el CV-pool
+fue un artefacto de que los únicos 2 pozos atípicos del CV-pool (1, 6) resultan ser
+particularmente someros (máximo 634m), no una propiedad robusta del régimen
+atípico en general.
+
+**Con el routing real del clasificador, el sistema combinado da MAE pooled = 12.01
+— 11.5% PEOR que el dummy**, y catastrófico específicamente en el pozo 0 (22.96,
+el peor resultado de cualquier modelo en cualquier pozo de todo M4) por el
+enrutamiento mayoritariamente equivocado.
+
+### Conclusión del experimento de régimen
+
+Sí hay evidencia de que separar por régimen ayuda **al modelo en sí** — los
+resultados oráculo son, con diferencia, los mejores vistos en todo M4, especialmente
+en el pozo atípico. Pero el problema no es entrenar el modelo especializado, es
+**enrutar correctamente un pozo nuevo a su régimen sin conocer su identidad** — y
+el intento más simple de resolver eso (MD + HD con regresión logística) falla
+específicamente en el caso que más importa (el pozo genuinamente atípico), porque
+el CV-pool solo tenía 2 pozos atípicos y ambos eran someros por coincidencia, no
+por definición del régimen. Esto no cierra la puerta a la idea de régimen — sugiere
+que haría falta (a) más pozos atípicos en el CV-pool para que el router aprenda el
+rango real de MD del régimen, no el de una muestra de 2, o (b) un router basado en
+otras señales además de MD/HD. Ninguna alternativa se implementa acá.
+
+### 2. ¿Vale la pena priorizar el enfoque de régimen sobre buscar más pozos?
+
+Con la evidencia de arriba: **no de forma aislada.** El enfoque de régimen mejora
+claramente el techo alcanzable (9.93 pooled con oráculo, mejor que cualquier cosa
+vista), pero el cuello de botella pasó a ser el router, y el router falla
+exactamente por el mismo motivo estructural que originó todo este diagnóstico:
+muy pocos pozos por régimen en el CV-pool (2 dominantes, 2 atípicos) para
+caracterizar la variabilidad real de cada régimen. Más pozos (opción 3 del reporte
+original) ayudaría en ambos frentes a la vez — más pozos para entrenar el modelo
+de cada régimen *y* más pozos para que el router generalice — mientras que quedarse
+solo con el enfoque de régimen actual, sin más datos, no parece alcanzar para
+producción.
+
+## Reconocimiento del dataset completo de Volve (Tunkiel) — solo investigación, sin descargar
+
+**No se pudo completar.** El servidor `ux.uis.no` devuelve `403 Forbidden` para
+cualquier solicitud automatizada — confirmado con dos métodos independientes
+(`WebFetch` y `curl` con user-agent de navegador), así que no es un bloqueo
+específico de una herramienta, es el servidor rechazando el acceso no
+interactivo/no institucional. No se descargó nada del dataset de 2.7GB, tal como
+se pidió.
+
+Lo que se pudo establecer por otras fuentes (con menor certeza, sin verificación
+directa contra el archivo real):
+
+- El dataset completo (Volve, parseado de WITSML a CSV por Tunkiel) cubre más
+  pozos que los 7 de USROP — la existencia de una curación explícita en el paper
+  de USROP (Tunkiel et al. 2021) implica que hubo pozos descartados por
+  completitud/calidad, no que solo existan 7 pozos con datos de perforación en
+  todo el campo Volve.
+- Una fuente (paper "TADI", arXiv 2605.00060) menciona "sparser reporting" en
+  pozos de la era de exploración del campo Volve frente a los de desarrollo
+  (2007-2016) — consistente con la hipótesis de que hay pozos adicionales, pero
+  con completitud desigual, no directamente comparables a los 7 ya curados.
+- **No se pudo determinar un número concreto** de pozos adicionales con las 12
+  columnas equivalentes y completitud similar — sería necesario browsear
+  `file_list.html` desde un navegador real (posiblemente bloqueado por IP/región,
+  no por ser un bot) o hacer una descarga liviana de solo metadata/listado de
+  archivos (no el dataset completo) como un paso de reconocimiento separado y
+  todavía barato, antes de comprometerse a procesar los 2.7GB completos.
+
+No se puede usar esto para decidir la opción 3 del reporte original todavía — el
+reconocimiento quedó incompleto, no negativo.
