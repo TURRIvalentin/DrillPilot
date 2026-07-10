@@ -125,3 +125,71 @@ diseño):
 
 No se decide acá cuál — es una decisión de diseño para el usuario, no un detalle de
 implementación.
+
+## Diagnóstico de la brecha CV-test
+
+Generado por [`ml/training/diagnose_cv_gap.py`](../ml/training/diagnose_cv_gap.py)
+(`python -m ml.training.diagnose_cv_gap`), guardado en
+[`docs/m4_diagnostics.json`](m4_diagnostics.json). **No reentrena ni reemplaza los
+modelos de M4** — el diagnóstico 1 usa los hiperparámetros ya tuneados, leídos
+directamente de la corrida logueada en MLflow (no retuneados, no copiados a mano); el
+diagnóstico 2 sí corre una tuneada nueva, pero de un modelo *distinto* (sin las 4
+features de ventana), no una nueva versión del modelo ya reportado arriba.
+
+### 1. MAE de LightGBM por fold LOWO-CV — no solo el promedio de 64%
+
+| Pozo held-out | Filas de validación | MAE LightGBM | MAE dummy (mismo fold) | Mejora vs. dummy | `best_iteration` |
+|---|---|---|---|---|---|
+| 1 | 6,389 | **1.65** | 33.37 | **95.1%** | 1000 (tope, sin early stopping) |
+| 2 | 47,645 | 10.01 | 11.31 | 11.5% | 97 |
+| 4 | 51,708 | 8.01 | 13.85 | 42.2% | 173 |
+| 6 | 7,851 | 11.48 | 27.56 | 58.3% | 65 |
+
+(`per_fold_cv_mae_mean_check` = 7.78778198504763, idéntico al `cv_mae_lowo` ya
+logueado — confirma que el desglose reproduce exactamente el promedio original, no
+un número distinto.)
+
+**Sí había una señal visible antes del test final, tal como se sospechaba.** El
+promedio de 64% de mejora está dominado por un solo fold extremo: con el pozo 1
+como validación, LightGBM logra una mejora del 95.1% (MAE=1.65) y además agota las
+1000 iteraciones permitidas sin que el early stopping lo frene — un comportamiento
+atípico frente a los otros tres folds (65-173 iteraciones), compatible con un fold
+inusualmente fácil de predecir a partir de los otros 3 pozos, no necesariamente
+representativo del resto. Sacando ese fold, la mejora real en los otros tres
+(11.5%, 42.2%, 58.3%) es bastante más modesta — y **el fold del pozo 2 (11.5%) es el
+más parecido, en magnitud, a lo que terminó pasando en el test final** (donde
+LightGBM prácticamente empata o pierde contra el dummy). El promedio agregado de CV
+escondía esta señal detrás de un solo fold favorable.
+
+### 2. Ablation: LightGBM sin las 4 features de ventana
+
+| Métrica | Completo (16 features) | Sin ventana (12 features) | Diferencia |
+|---|---|---|---|
+| CV MAE (LOWO) | 7.79 | 7.93 | +1.8% peor en CV (marginal) |
+| Test MAE pooled | 11.59 | **11.35** | 2.1% mejor sin ventana |
+| Test MAE — dominante | 10.59 | **10.46** | 1.2% mejor sin ventana |
+| Test MAE — atípico (pozo 0) | 16.83 | **15.98** | 5.1% mejor sin ventana |
+| Test MAE — pozo 3 | **9.29** | 9.31 | 0.2% peor sin ventana (ruido, no señal) |
+| Test MAE — pozo 5 | 14.31 | **13.76** | 3.8% mejor sin ventana |
+
+**Evidencia parcial a favor de la hipótesis, pero no la explica todo.** Sacar las 4
+features de ventana casi no cuesta nada en CV (+1.8%, dentro de ruido esperable) y
+mejora el test en 4 de 5 desgloses (pooled, ambos régimen, 2 de 3 pozos) — consistente
+con que esas features estén capturando algo de patrón específico del CV-pool que no
+transfiere, tal como se sospechaba. Pero **el modelo sin features de ventana
+tampoco le gana al dummy** (11.35 vs. 10.77 pooled, todavía 5.4% peor) — así que las
+features de ventana son parte del problema, no la causa completa. El grueso de la
+brecha CV-test persiste incluso con el feature set más simple.
+
+### Conclusión de este diagnóstico
+
+Ambos resultados apuntan en la misma dirección: **el problema no es un exceso de
+features, es la heterogeneidad entre pozos combinada con muy pocos pozos de
+entrenamiento (4).** El fold "fácil" (pozo 1) infló el promedio de CV de forma que
+no era visible sin desagregar por fold — y aun quitando la fuente más obvia de
+sobreajuste (las features de ventana), persiste una brecha de generalización de
+~5% contra el dummy. Esto pesa a favor de la opción 3 del reporte original (revisar
+si hay margen para más pozos) por sobre la opción 2 (más regularización) como única
+respuesta — la regularización podría ayudar con la fracción de la brecha explicada
+por las features de ventana, pero no con la fracción explicada por tener solo 4
+pozos de referencia. Sigue siendo una decisión del usuario, no resuelta acá.
