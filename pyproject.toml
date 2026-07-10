@@ -1,0 +1,61 @@
+[project]
+name = "drillpilot"
+version = "0.1.0"
+description = "Plataforma de Machine Learning para predecir el Rate of Penetration (ROP) durante la perforacion de pozos de petroleo."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+dependencies = []
+
+[project.optional-dependencies]
+ml = [
+    "pandas",
+    "scikit-learn",
+    "lightgbm",
+    "optuna",
+    "shap",
+    "mlflow",
+]
+api = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2",
+]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "pre-commit",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["backend*", "ml*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
