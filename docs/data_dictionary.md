@@ -49,10 +49,9 @@ embebidos en el header original:
 | GR | `USROP Gamma gAPI` | gAPI | Rayos gamma | 0.00 – 260.90 |
 | **ROP** (target) | `Rate of Penetration m/h` | m/h | Tasa de penetración — variable a predecir | 0.33 – 99.21 |
 
-**Nota (no accionable en M1, para tener presente en M2):** el mínimo de RPM y
-de GR es exactamente `0`. Puede ser un valor físico real (pozo sin rotación en
-conexiones, o ausencia de lectura de gamma) o un valor de sensor/placeholder —
-no se investiga ni se limpia acá, queda para la fase de limpieza de datos (M2).
+**Nota:** el mínimo de RPM y de GR es exactamente `0`. Investigado en M2 con
+criterio físico/operacional — ver
+[docs/eda_findings.md](eda_findings.md#rpm--0-y-gr--0).
 
 ## Filas y missing values por pozo
 
@@ -71,6 +70,24 @@ faltantes (NaN) en ninguna columna de ningún pozo**.
 | **Total** | — | **198,928** | — |
 
 Consistente con el "~200,000 muestras" declarado en ADR-001.
+
+## Limitación conocida: relleno forward/backward aplicado por los autores
+
+Tunkiel, Sui & Wiktorski (2021) — la misma publicación citada en
+[ADR-001](adr/001-dataset-selection.md) — aplicaron *forward/backward filling*
+para completar los huecos generados por frecuencias de logueo desiguales entre
+sensores antes de publicar USROP. Esto explica por qué el dataset no tiene
+ningún `NaN` (sección anterior): los gaps ya fueron rellenados por los autores
+antes de la publicación, no es que las mediciones originales no tuvieran huecos.
+
+**Consecuencia para este proyecto:** no hay forma de distinguir, dentro de
+USROP, un valor efectivamente medido de un valor interpolado (repetido del
+último/próximo dato válido) por los autores. Cualquier análisis de
+"continuidad" o "eventos" hecho sobre este dataset (ver
+[docs/eda_findings.md](eda_findings.md)) opera sobre la versión ya rellenada,
+no sobre la señal cruda de los sensores. Se documenta como limitación
+conocida del dataset, no como algo a corregir — no hay acceso a los datos
+crudos pre-relleno.
 
 ## Licencia de los datos
 

@@ -11,6 +11,7 @@ dependencies = []
 [project.optional-dependencies]
 ml = [
     "pandas",
+    "matplotlib",
     "scikit-learn",
     "lightgbm",
     "optuna",

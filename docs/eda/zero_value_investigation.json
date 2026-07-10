@@ -1,0 +1,226 @@
+{
+  "rpm_zero": [
+    {
+      "well": "USROP_A 0 N-NA_F-9_Ad.csv",
+      "rows": 13746,
+      "zero_rpm_rows": 289,
+      "zero_rpm_pct": 2.1024,
+      "wob_mean_at_zero_rpm": 18.92,
+      "rop_mean_at_zero_rpm": 31.569,
+      "rop_pct_below_0_5_at_zero_rpm": 0.0,
+      "contiguous_runs": [
+        289
+      ]
+    },
+    {
+      "well": "USROP_A 1 N-S_F-7d.csv",
+      "rows": 6389,
+      "zero_rpm_rows": 0,
+      "zero_rpm_pct": 0.0,
+      "wob_mean_at_zero_rpm": null,
+      "rop_mean_at_zero_rpm": null,
+      "rop_pct_below_0_5_at_zero_rpm": null,
+      "contiguous_runs": []
+    },
+    {
+      "well": "USROP_A 2 N-SH_F-14d.csv",
+      "rows": 47645,
+      "zero_rpm_rows": 25,
+      "zero_rpm_pct": 0.0525,
+      "wob_mean_at_zero_rpm": 3.702,
+      "rop_mean_at_zero_rpm": 13.96,
+      "rop_pct_below_0_5_at_zero_rpm": 0.0,
+      "contiguous_runs": [
+        25
+      ]
+    },
+    {
+      "well": "USROP_A 3 N-SH-F-15d.csv",
+      "rows": 53041,
+      "zero_rpm_rows": 1,
+      "zero_rpm_pct": 0.0019,
+      "wob_mean_at_zero_rpm": 1.175,
+      "rop_mean_at_zero_rpm": 17.806,
+      "rop_pct_below_0_5_at_zero_rpm": 0.0,
+      "contiguous_runs": [
+        1
+      ]
+    },
+    {
+      "well": "USROP_A 4 N-SH_F-15Sd.csv",
+      "rows": 51708,
+      "zero_rpm_rows": 11,
+      "zero_rpm_pct": 0.0213,
+      "wob_mean_at_zero_rpm": 22.146,
+      "rop_mean_at_zero_rpm": 51.944,
+      "rop_pct_below_0_5_at_zero_rpm": 0.0,
+      "contiguous_runs": [
+        1,
+        10
+      ]
+    },
+    {
+      "well": "USROP_A 5 N-SH-F-5d.csv",
+      "rows": 18548,
+      "zero_rpm_rows": 0,
+      "zero_rpm_pct": 0.0,
+      "wob_mean_at_zero_rpm": null,
+      "rop_mean_at_zero_rpm": null,
+      "rop_pct_below_0_5_at_zero_rpm": null,
+      "contiguous_runs": []
+    },
+    {
+      "well": "USROP_A 6 N-SH_F-9d.csv",
+      "rows": 7851,
+      "zero_rpm_rows": 0,
+      "zero_rpm_pct": 0.0,
+      "wob_mean_at_zero_rpm": null,
+      "rop_mean_at_zero_rpm": null,
+      "rop_pct_below_0_5_at_zero_rpm": null,
+      "contiguous_runs": []
+    }
+  ],
+  "gr_zero": [
+    {
+      "well": "USROP_A 0 N-NA_F-9_Ad.csv",
+      "zero_gr_rows": 0,
+      "contiguous_runs": [],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": null
+    },
+    {
+      "well": "USROP_A 1 N-S_F-7d.csv",
+      "zero_gr_rows": 0,
+      "contiguous_runs": [],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": null
+    },
+    {
+      "well": "USROP_A 2 N-SH_F-14d.csv",
+      "zero_gr_rows": 26,
+      "contiguous_runs": [
+        24,
+        2
+      ],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": [
+        2829.9,
+        3378.9
+      ]
+    },
+    {
+      "well": "USROP_A 3 N-SH-F-15d.csv",
+      "zero_gr_rows": 17,
+      "contiguous_runs": [
+        9,
+        8
+      ],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": [
+        2878.2,
+        3040.6
+      ]
+    },
+    {
+      "well": "USROP_A 4 N-SH_F-15Sd.csv",
+      "zero_gr_rows": 116,
+      "contiguous_runs": [
+        8,
+        16,
+        11,
+        11,
+        4,
+        11,
+        1,
+        5,
+        2,
+        4,
+        10,
+        3,
+        2,
+        11,
+        10,
+        7
+      ],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": [
+        2540.8,
+        3592.1
+      ]
+    },
+    {
+      "well": "USROP_A 5 N-SH-F-5d.csv",
+      "zero_gr_rows": 38,
+      "contiguous_runs": [
+        16,
+        5,
+        4,
+        10,
+        3
+      ],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": [
+        3034.7,
+        3781.3
+      ]
+    },
+    {
+      "well": "USROP_A 6 N-SH_F-9d.csv",
+      "zero_gr_rows": 0,
+      "contiguous_runs": [],
+      "overlap_with_zero_rpm": 0,
+      "md_range_at_zero_gr": null
+    }
+  ],
+  "rop_below_1": [
+    {
+      "well": "USROP_A 0 N-NA_F-9_Ad.csv",
+      "rop_below_1_rows": 24,
+      "rop_below_1_pct": 0.1746,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 24
+    },
+    {
+      "well": "USROP_A 1 N-S_F-7d.csv",
+      "rop_below_1_rows": 0,
+      "rop_below_1_pct": 0.0,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 0
+    },
+    {
+      "well": "USROP_A 2 N-SH_F-14d.csv",
+      "rop_below_1_rows": 39,
+      "rop_below_1_pct": 0.0819,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 39
+    },
+    {
+      "well": "USROP_A 3 N-SH-F-15d.csv",
+      "rop_below_1_rows": 9,
+      "rop_below_1_pct": 0.017,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 9
+    },
+    {
+      "well": "USROP_A 4 N-SH_F-15Sd.csv",
+      "rop_below_1_rows": 23,
+      "rop_below_1_pct": 0.0445,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 23
+    },
+    {
+      "well": "USROP_A 5 N-SH-F-5d.csv",
+      "rop_below_1_rows": 0,
+      "rop_below_1_pct": 0.0,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 0
+    },
+    {
+      "well": "USROP_A 6 N-SH_F-9d.csv",
+      "rop_below_1_rows": 0,
+      "rop_below_1_pct": 0.0,
+      "stopped_like_rows": 0,
+      "active_slow_drilling_rows": 0
+    }
+  ]
+}
