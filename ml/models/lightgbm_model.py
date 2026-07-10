@@ -51,7 +51,8 @@ def _objective(trial: optuna.Trial, X: pd.DataFrame, y: pd.Series, well_id: pd.S
 
     fold_maes: list[float] = []
     best_iterations: list[int] = []
-    for train_pos, val_pos, _held_out_well in leave_one_well_out_splits(well_id):
+    held_out_wells: list[int] = []
+    for train_pos, val_pos, held_out_well in leave_one_well_out_splits(well_id):
         model = lgb.LGBMRegressor(**params)
         model.fit(
             X.iloc[train_pos],
@@ -63,8 +64,14 @@ def _objective(trial: optuna.Trial, X: pd.DataFrame, y: pd.Series, well_id: pd.S
         preds = model.predict(X.iloc[val_pos])
         fold_maes.append(float(mean_absolute_error(y.iloc[val_pos], preds)))
         best_iterations.append(int(model.best_iteration_))
+        held_out_wells.append(held_out_well)
 
+    # Purely diagnostic (does not affect trial selection): lets a caller reconstruct
+    # every trial's per-fold breakdown later, e.g. to check whether Optuna's ranking
+    # across trials is dominated by one fold -- see ml/training/diagnose_cv_gap.py.
     trial.set_user_attr("best_iterations", best_iterations)
+    trial.set_user_attr("fold_maes", fold_maes)
+    trial.set_user_attr("held_out_wells", held_out_wells)
     return float(np.mean(fold_maes))
 
 

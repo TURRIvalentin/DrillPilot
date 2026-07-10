@@ -193,3 +193,85 @@ si hay margen para más pozos) por sobre la opción 2 (más regularización) com
 respuesta — la regularización podría ayudar con la fracción de la brecha explicada
 por las features de ventana, pero no con la fracción explicada por tener solo 4
 pozos de referencia. Sigue siendo una decisión del usuario, no resuelta acá.
+
+## Hipótesis 3: sobreajuste al protocolo de CV
+
+Generado por `ml.training.diagnose_cv_gap.main_hypothesis_3()`
+(`python -m ml.training.diagnose_cv_gap`), guardado en
+[`docs/m4_diagnostics.json`](m4_diagnostics.json). **No reentrena ni reemplaza
+ningún modelo de M4** — 3a entrena un modelo adicional puramente diagnóstico con
+hiperparámetros fijos (no Optuna); 3b reconstruye la corrida de Optuna de M4 con la
+misma semilla/búsqueda ya usada (determinística, no una búsqueda nueva) solo para
+extraer el detalle por-fold que no se había guardado la primera vez.
+
+### 3a. LightGBM con hiperparámetros fijos conservadores (sin Optuna)
+
+Hiperparámetros usados (mismas 16 features que el modelo completo de M4):
+`max_depth=4`, `num_leaves=15`, `min_child_samples=1000`, `colsample_bytree=0.75`,
+`subsample=0.75`, `subsample_freq=1`. `learning_rate=0.05` no estaba en la
+especificación del experimento — se completó con un valor moderado para no
+confundir la comparación.
+
+| Modelo | CV MAE (LOWO) | Test pooled | Test dominante | Test atípico (pozo 0) |
+|---|---|---|---|---|
+| Dummy | 21.52 | **10.77** | **9.64** | 16.64 |
+| **Conservador fijo (sin Optuna)** | 9.90 | 11.24 | 10.06 | 17.37 |
+| Ablation sin ventana (Optuna) | 7.93 | 11.35 | 10.46 | 15.98 |
+| Completo tuneado (Optuna) | **7.79** | 11.59 | 10.59 | 16.83 |
+| B&Y reducido | 14.07 | 11.85 | 12.14 | **10.32** |
+
+**Patrón claro y monótono: a menos flexibilidad, más cerca del dummy en test —
+pero ninguna versión de LightGBM lo supera en pooled.** Ordenando por MAE de test
+pooled: dummy (10.77) < conservador (11.24) < ablation (11.35) < tuneado (11.59) <
+B&Y reducido (11.85). El modelo conservador es 4.4% peor que el dummy en pooled
+(y en cada régimen, casi la misma proporción: -4.4% dominante, -4.4% atípico) —
+mejor que el tuneado (+3.1% con respecto a él) pero no suficiente para cruzar la
+línea. Excepción notable: en el pozo 5 específicamente, el conservador sí le gana
+al dummy (+8.1%) — no es una mejora uniforme, es más fuerte en algunos pozos que
+en otros.
+
+**Detalle que refuerza la hipótesis del pozo 1 como anómalo:** incluso con
+hiperparámetros deliberadamente conservadores, el fold del pozo 1 volvió a agotar
+casi todo el presupuesto de iteraciones (998 de 1000, contra 47-446 en los otros
+tres folds) — el comportamiento atípico de ese fold no depende de qué tan agresivos
+sean los hiperparámetros, algo en ese fold específico hace que el modelo "siga
+mejorando" mucho más tiempo que en los demás.
+
+### 3b. ¿Dominó el pozo 1 la selección de hiperparámetros de Optuna?
+
+Reconstruido el detalle por-fold de los 15 trials de la ronda de tuning de M4
+(misma semilla, mismos resultados — `winning_trial_value=7.78778...`, idéntico al
+ya logueado):
+
+| Pozo held-out | MAE medio entre los 15 trials | Desvío estándar | Rango (min-max) | Correlación con el ranking general del trial |
+|---|---|---|---|---|
+| **1** | 3.13 | **1.73** (55% del medio) | **1.07 – 7.59** (rango 6.51) | **0.80** |
+| 2 | 9.97 | 0.57 (6% del medio) | 8.52 – 10.86 (rango 2.34) | -0.31 |
+| 4 | 8.09 | 0.47 (6% del medio) | 7.18 – 9.22 (rango 2.05) | 0.50 |
+| 6 | 12.81 | 0.58 (5% del medio) | 11.48 – 13.66 (rango 2.18) | 0.46 |
+
+**Sí, claramente.** El fold del pozo 1 tiene una variabilidad relativa (55% de su
+propia media) diez veces mayor que los otros tres folds (5-6%), y es el único con
+una correlación fuerte con el ranking general que usa Optuna para elegir el
+"ganador" (0.80, contra 0.46-0.50 de los otros dos positivos y -0.31 del pozo 2).
+En la práctica: qué tan bien le va a un trial en el pozo 1 explica, por sí solo,
+gran parte de qué trial termina eligiendo Optuna — no es un promedio balanceado
+entre 4 folds igual de informativos. La correlación negativa del pozo 2 (-0.31) es
+otra pieza de evidencia: sugiere que las configuraciones que mejor le achican el
+error al pozo 1 tienden a costar un poco de performance en el pozo 2 — un
+trade-off real entre folds, no ruido.
+
+### Conclusión de Hipótesis 3
+
+Las dos piezas de evidencia son consistentes entre sí y con el diagnóstico anterior:
+el proceso de selección de hiperparámetros de M4 **sí estaba sesgado hacia el fold
+del pozo 1**, y ese sesgo explica buena parte de por qué el modelo tuneado lucía
+mucho mejor en CV de lo que resultó ser en test. Pero el experimento 3a muestra que
+esto **no es solo un problema de regularización**: incluso el modelo más
+conservador posible dentro de lo pedido sigue sin superar al dummy en pooled. La
+regularización ayuda (mueve el resultado en la dirección correcta, de forma
+monótona y medible) pero no alcanza para cerrar la brecha — consistente con que la
+causa de fondo sea la cantidad de pozos disponibles para entrenar (4), no la
+complejidad del modelo por sí sola. Ninguna de las 3 opciones del reporte original
+se implementa acá — sigue siendo una decisión del usuario, ahora con más evidencia
+para tomarla.

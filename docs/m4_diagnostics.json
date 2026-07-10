@@ -67,5 +67,101 @@
       "random_state": 42,
       "verbosity": -1
     }
+  },
+  "conservative_fixed_lightgbm": {
+    "params": {
+      "objective": "mae",
+      "max_depth": 4,
+      "num_leaves": 15,
+      "min_child_samples": 1000,
+      "colsample_bytree": 0.75,
+      "subsample": 0.75,
+      "subsample_freq": 1,
+      "learning_rate": 0.05,
+      "n_estimators": 394,
+      "random_state": 42,
+      "verbosity": -1
+    },
+    "per_fold_cv_mae": [
+      {
+        "held_out_well": 1,
+        "val_rows": 6389,
+        "mae": 6.942110682251512,
+        "best_iteration": 998
+      },
+      {
+        "held_out_well": 2,
+        "val_rows": 47645,
+        "mae": 9.950362454296847,
+        "best_iteration": 446
+      },
+      {
+        "held_out_well": 4,
+        "val_rows": 51708,
+        "mae": 9.289935702772173,
+        "best_iteration": 47
+      },
+      {
+        "held_out_well": 6,
+        "val_rows": 7851,
+        "mae": 13.410517783258113,
+        "best_iteration": 84
+      }
+    ],
+    "cv_mae_lowo": 9.898231655644661,
+    "test_pooled": 11.237893476051413,
+    "test_by_well": {
+      "0": 17.36792131097701,
+      "3": 9.136872371967572,
+      "5": 12.703113325243987
+    },
+    "test_by_regime": {
+      "dominante": 10.06085003894673,
+      "atipico": 17.36792131097701
+    }
+  },
+  "optuna_trial_fold_bias": {
+    "n_trials": 15,
+    "held_out_wells": [
+      1,
+      2,
+      4,
+      6
+    ],
+    "per_fold": {
+      "1": {
+        "mean": 3.1293516510942188,
+        "std": 1.7279674639457985,
+        "min": 1.0739670891254964,
+        "max": 7.587017725320779,
+        "range": 6.513050636195283,
+        "correlation_with_trial_ranking": 0.8021806258978819
+      },
+      "2": {
+        "mean": 9.968145062232738,
+        "std": 0.5658195704202064,
+        "min": 8.520324399363213,
+        "max": 10.861733976320501,
+        "range": 2.341409576957288,
+        "correlation_with_trial_ranking": -0.30709913725388815
+      },
+      "4": {
+        "mean": 8.093467624379038,
+        "std": 0.47069577260593254,
+        "min": 7.175482909811004,
+        "max": 9.224668673193984,
+        "range": 2.0491857633829795,
+        "correlation_with_trial_ranking": 0.4953723809621824
+      },
+      "6": {
+        "mean": 12.812600550021768,
+        "std": 0.5826670829572379,
+        "min": 11.481461897586172,
+        "max": 13.662605801929866,
+        "range": 2.1811439043436938,
+        "correlation_with_trial_ranking": 0.4564107323810838
+      }
+    },
+    "winning_trial_value": 7.78778198504763
   }
 }

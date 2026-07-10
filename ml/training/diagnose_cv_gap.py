@@ -1,5 +1,5 @@
 """M4 diagnostics (post-hoc, does NOT retrain or replace the committed M4 models):
-breaks the docs/m4_results.md CV-vs-test gap finding into two pieces requested before
+breaks the docs/m4_results.md CV-vs-test gap finding into pieces requested before
 deciding how to proceed to M5:
 
 1. Per-fold LOWO-CV MAE for the already-tuned LightGBM (not just the mean Optuna
@@ -8,6 +8,10 @@ deciding how to proceed to M5:
 2. An ablation: retune LightGBM (same Optuna + LOWO-CV protocol, same n_trials) using
    only the 12 direct M3 features, excluding the 4 window features, and compare its
    test-set performance to the full-feature model already in docs/m4_metrics.json.
+3. (Hipotesis 3) A fixed, deliberately conservative LightGBM (no Optuna at all), and
+   whether Optuna's own trial ranking during M4 tuning was dominated by one LOWO-CV
+   fold (well 1) -- both requested before choosing between the 3 options in
+   docs/m4_results.md's original recommendation.
 
 Run: python -m ml.training.diagnose_cv_gap
 """
@@ -20,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import lightgbm as lgb
+import numpy as np
 import pandas as pd
 from mlflow.tracking import MlflowClient
 from sklearn.metrics import mean_absolute_error
@@ -31,6 +36,22 @@ from ml.features.split import split_test_cv_pool
 from ml.models.lightgbm_model import tune_and_fit_lightgbm
 from ml.training.cv import leave_one_well_out_splits
 from ml.training.train_baselines import EXPERIMENT_NAME
+
+# Deliberately conservative, hand-chosen (NOT Optuna-tuned) hyperparameters for
+# Hipotesis 3: shallow trees, few leaves, large min_child_samples (forces each leaf to
+# summarize many rows instead of memorizing a handful from one well), and reduced
+# feature/bagging fractions. learning_rate is not part of the user's conservative
+# recipe -- filled in at a moderate, unremarkable default (0.05) so it does not
+# confound the comparison.
+CONSERVATIVE_FIXED_PARAMS: dict[str, Any] = {
+    "max_depth": 4,
+    "num_leaves": 15,
+    "min_child_samples": 1000,
+    "colsample_bytree": 0.75,
+    "subsample": 0.75,
+    "subsample_freq": 1,
+    "learning_rate": 0.05,
+}
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +179,88 @@ def run_ablation_without_window_features(n_trials: int = 15) -> dict[str, Any]:
     }
 
 
+def train_fixed_conservative_lightgbm(
+    X_cv: pd.DataFrame,
+    y_cv: pd.Series,
+    well_id_cv: pd.Series,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    well_id_test: pd.Series,
+) -> dict[str, Any]:
+    """Train LightGBM with CONSERVATIVE_FIXED_PARAMS (no Optuna) on the full 16-feature
+    matrix, using the exact same LOWO-CV protocol as the tuned model for the CV MAE,
+    then refit on the full CV-pool (n_estimators = mean best_iteration across folds)
+    and evaluate on test with the same pooled/by-well/by-regime report as every other
+    M4 model.
+    """
+    fold_results = per_fold_cv_mae(X_cv, y_cv, well_id_cv, CONSERVATIVE_FIXED_PARAMS)
+    cv_mae = float(np.mean([f["mae"] for f in fold_results]))
+    final_n_estimators = max(
+        int(round(float(np.mean([f["best_iteration"] for f in fold_results])))), 10
+    )
+
+    final_params = {
+        "objective": "mae",
+        **CONSERVATIVE_FIXED_PARAMS,
+        "n_estimators": final_n_estimators,
+        "random_state": 42,
+        "verbosity": -1,
+    }
+    model = lgb.LGBMRegressor(**final_params)
+    model.fit(X_cv, y_cv)
+    test_preds = model.predict(X_test)
+    test_report = mae_report(y_test, test_preds, well_id_test)
+
+    return {
+        "params": final_params,
+        "per_fold_cv_mae": fold_results,
+        "cv_mae_lowo": cv_mae,
+        "test_pooled": test_report.pooled,
+        "test_by_well": test_report.by_well,
+        "test_by_regime": test_report.by_regime,
+    }
+
+
+def analyze_optuna_trial_fold_bias(
+    X_cv: pd.DataFrame, y_cv: pd.Series, well_id_cv: pd.Series, n_trials: int = 15
+) -> dict[str, Any]:
+    """Reconstruct the exact M4 Optuna study (same seed, same search space, same
+    n_trials -- deterministic, not a new/different search) and check whether one
+    LOWO-CV fold dominated which trials Optuna preferred.
+
+    For each fold (held-out well), reports the per-trial MAE range/std across all
+    `n_trials` trials, and its Pearson correlation with the trial's overall objective
+    value (mean across folds) -- the value Optuna actually ranks trials by. A fold
+    whose per-trial MAE varies a lot AND correlates strongly with the overall ranking
+    is a fold that disproportionately drove which hyperparameters "won".
+    """
+    _model, study, _params = tune_and_fit_lightgbm(X_cv, y_cv, well_id_cv, n_trials=n_trials)
+
+    trials = [t for t in study.trials if t.value is not None]
+    held_out_wells = trials[0].user_attrs["held_out_wells"]
+    overall_values = np.array([t.value for t in trials])
+
+    per_fold: dict[str, dict[str, float]] = {}
+    for i, well in enumerate(held_out_wells):
+        fold_values = np.array([t.user_attrs["fold_maes"][i] for t in trials])
+        correlation = float(np.corrcoef(fold_values, overall_values)[0, 1])
+        per_fold[str(well)] = {
+            "mean": float(fold_values.mean()),
+            "std": float(fold_values.std()),
+            "min": float(fold_values.min()),
+            "max": float(fold_values.max()),
+            "range": float(fold_values.max() - fold_values.min()),
+            "correlation_with_trial_ranking": correlation,
+        }
+
+    return {
+        "n_trials": n_trials,
+        "held_out_wells": held_out_wells,
+        "per_fold": per_fold,
+        "winning_trial_value": study.best_value,
+    }
+
+
 def main(n_trials: int = 15) -> dict[str, Any]:
     df = load_combined_dataset()
     cv_pool_df, _test_df = split_test_cv_pool(df)
@@ -181,6 +284,46 @@ def main(n_trials: int = 15) -> dict[str, Any]:
     RESULTS_PATH.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     logger.info("Resultados guardados en %s", RESULTS_PATH)
     return results
+
+
+def main_hypothesis_3(n_trials: int = 15) -> dict[str, Any]:
+    """Hipotesis 3: fixed conservative LightGBM (no Optuna) + fold-bias analysis of
+    Optuna's own trial ranking. Merges into the existing docs/m4_diagnostics.json
+    (diagnostics 1 and 2 stay untouched)."""
+    df = load_combined_dataset()
+    cv_pool_df, test_df = split_test_cv_pool(df)
+    transformer = USROPFeatureTransformer()
+    X_cv = transformer.fit_transform(cv_pool_df)
+    X_test = transformer.transform(test_df)
+
+    logger.info("=== Hipotesis 3a: LightGBM con hiperparametros fijos conservadores ===")
+    conservative_results = train_fixed_conservative_lightgbm(
+        X_cv,
+        cv_pool_df["ROP"],
+        cv_pool_df["well_id"],
+        X_test,
+        test_df["ROP"],
+        test_df["well_id"],
+    )
+    logger.info(
+        "Conservador: CV MAE=%.4f, test pooled=%.4f",
+        conservative_results["cv_mae_lowo"],
+        conservative_results["test_pooled"],
+    )
+
+    logger.info("=== Hipotesis 3b: sesgo por fold en la seleccion de Optuna ===")
+    fold_bias_results = analyze_optuna_trial_fold_bias(
+        X_cv, cv_pool_df["ROP"], cv_pool_df["well_id"], n_trials=n_trials
+    )
+
+    existing: dict[str, Any] = {}
+    if RESULTS_PATH.exists():
+        existing = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    existing["conservative_fixed_lightgbm"] = conservative_results
+    existing["optuna_trial_fold_bias"] = fold_bias_results
+    RESULTS_PATH.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info("Resultados guardados en %s", RESULTS_PATH)
+    return existing
 
 
 if __name__ == "__main__":
