@@ -27,7 +27,14 @@ ENV PATH="/opt/venv/bin:${PATH}"
 COPY pyproject.toml ./
 COPY ml ./ml
 COPY backend ./backend
-RUN uv pip install --python /opt/venv/bin/python ".[ml,api]"
+
+# -e (editable): prevents a second physical copy of ml/ in site-packages
+# whose Path(__file__)-based lookups could resolve to the wrong location
+# depending on which copy gets imported -- not currently exercised by any
+# backend runtime import path, but the same latent class of bug found in
+# the frontend image. See
+# docs/adr/009-duplicate-package-copy-path-resolution.md.
+RUN uv pip install --python /opt/venv/bin/python -e ".[ml,api]"
 
 
 FROM python:3.12-slim AS backend

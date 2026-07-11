@@ -30,7 +30,16 @@ COPY docs/data_checksums.json ./docs/data_checksums.json
 RUN python ml/data/download_usrop.py
 
 COPY frontend ./frontend
-RUN uv pip install --system ".[ml,frontend]"
+
+# -e (editable): a non-editable install copies ml/ into site-packages,
+# creating a second physical copy alongside /app/ml. Path(__file__)-based
+# lookups (e.g. DEFAULT_RAW_DATA_DIR in ml/cleaning/clean_usrop.py) then
+# resolve differently depending on which copy gets imported -- and
+# Streamlit's console-script entry point does not add /app to sys.path the
+# way a plain `python -c` does, so it silently imports the wrong (empty)
+# copy. Editable keeps a single physical /app/ml -- see
+# docs/adr/009-duplicate-package-copy-path-resolution.md.
+RUN uv pip install --system -e ".[ml,frontend]"
 
 EXPOSE 8501
 
