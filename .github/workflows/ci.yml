@@ -20,8 +20,14 @@ jobs:
       - name: Install Python
         run: uv python install 3.12
 
+      - name: Create virtual environment
+        run: uv venv --python 3.12
+
+      - name: Add virtual environment to PATH
+        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
       - name: Install dependencies
-        run: uv pip install --system ".[ml,api,frontend,dev]"
+        run: uv pip install ".[ml,api,frontend,dev]"
 
       - name: ruff check
         run: ruff check .
