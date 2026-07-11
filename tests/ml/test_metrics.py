@@ -8,6 +8,8 @@ import pytest
 from ml.evaluation.metrics import (
     ATYPICAL_REGIME_WELL_IDS,
     DOMINANT_REGIME_WELL_IDS,
+    KNOWN_LIMITATION_MD_RANGE_M,
+    is_in_known_limitation_zone,
     mae_report,
     regime_of,
 )
@@ -53,3 +55,24 @@ def test_to_flat_metrics_naming() -> None:
     assert flat["test_well_3"] == 0.0
     assert flat["test_regime_dominante"] == 0.0
     assert "test_regime_atipico" not in flat
+
+
+def test_known_limitation_md_range_is_the_documented_cv_pool_gap() -> None:
+    low, high = KNOWN_LIMITATION_MD_RANGE_M
+    assert low < high
+    # Matches docs/m4_results.md: atypical CV-pool wells (1, 6) top out at 634 m,
+    # dominant CV-pool wells (2, 4) start at 988 m.
+    assert low == 634.0
+    assert high == 988.0
+
+
+def test_is_in_known_limitation_zone_boundaries_are_inclusive() -> None:
+    assert is_in_known_limitation_zone(634.0) is True
+    assert is_in_known_limitation_zone(988.0) is True
+    assert is_in_known_limitation_zone(800.0) is True
+
+
+def test_is_in_known_limitation_zone_outside_the_band() -> None:
+    assert is_in_known_limitation_zone(633.9) is False
+    assert is_in_known_limitation_zone(988.1) is False
+    assert is_in_known_limitation_zone(50.0) is False

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ml.explainability.shap_explain import REGIME_GAP_MD_RANGE_M, regime_label
+from ml.explainability.shap_explain import regime_label
 
 
 def test_regime_label_classifies_known_wells() -> None:
@@ -27,10 +27,5 @@ def test_regime_label_classifies_known_wells() -> None:
     ]
 
 
-def test_regime_gap_md_range_is_the_documented_cv_pool_gap() -> None:
-    low, high = REGIME_GAP_MD_RANGE_M
-    assert low < high
-    # Matches docs/m4_results.md: atypical CV-pool wells (1, 6) top out at 634 m,
-    # dominant CV-pool wells (2, 4) start at 988 m.
-    assert low == 634.0
-    assert high == 988.0
+# REGIME_GAP_MD_RANGE_M (re-exported from ml.evaluation.metrics.KNOWN_LIMITATION_MD_RANGE_M)
+# is tested at its source in tests/ml/test_metrics.py, not duplicated here.

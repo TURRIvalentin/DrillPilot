@@ -31,6 +31,7 @@ import pandas as pd  # noqa: E402
 import shap  # noqa: E402
 
 from ml.evaluation.metrics import DOMINANT_REGIME_WELL_IDS  # noqa: E402
+from ml.evaluation.metrics import KNOWN_LIMITATION_MD_RANGE_M as REGIME_GAP_MD_RANGE_M  # noqa: E402
 from ml.features.dataset import load_combined_dataset  # noqa: E402
 from ml.features.pipeline import USROPFeatureTransformer  # noqa: E402
 from ml.features.split import split_test_cv_pool  # noqa: E402
@@ -50,11 +51,9 @@ RESULTS_PATH = _REPO_ROOT / "docs" / "m5_shap_summary.json"
 # candidate is needed.
 CANDIDATE_RUN_ID = "cbab6ab7cbbe435da1fc63a9c23a5542"
 
-# MD band with zero CV-pool coverage from either regime (docs/m4_results.md, regime
-# experiment): atypical CV-pool wells (1, 6) top out at 634 m, dominant CV-pool wells
-# (2, 4) start at 988 m. Test well 0 (atypical) reaches into this band (up to 1206 m)
-# -- exactly where the M4 regime router failed. Marked on the MD dependence plot.
-REGIME_GAP_MD_RANGE_M: tuple[float, float] = (634.0, 988.0)
+# REGIME_GAP_MD_RANGE_M is imported above from ml.evaluation.metrics
+# (KNOWN_LIMITATION_MD_RANGE_M) -- single source of truth, also used by the backend's
+# known_limitation_zone response field (M7). Marked on the MD dependence plot below.
 
 
 def load_candidate_model() -> Any:

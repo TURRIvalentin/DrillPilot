@@ -14,6 +14,18 @@ from sklearn.metrics import mean_absolute_error
 DOMINANT_REGIME_WELL_IDS: frozenset[int] = frozenset({2, 3, 4, 5})
 ATYPICAL_REGIME_WELL_IDS: frozenset[int] = frozenset({0, 1, 6})
 
+# MD band with zero CV-pool coverage from either regime: atypical CV-pool wells
+# (1, 6) top out at 634 m, dominant CV-pool wells (2, 4) start at 988 m (see
+# docs/adr/003-split-strategy.md's regime experiment). Confirmed three times
+# independently as a genuine high-error zone, not just a training-coverage gap:
+# M4's regime router (100% CV-pool accuracy, 16.2% real accuracy on well 0), M5's
+# SHAP MD dependence plot (qualitative break at this exact band), and M6's live
+# inference validation (well 0 prediction MAE spikes to ~31 past this band, worse
+# than the well's already-weak start). Single source of truth for this constant --
+# ml.explainability.shap_explain and the backend's known_limitation_zone response
+# field both import it from here. See docs/m6_results.md.
+KNOWN_LIMITATION_MD_RANGE_M: tuple[float, float] = (634.0, 988.0)
+
 
 def regime_of(well_id: int) -> str:
     """Classify a well_id into the two regimes established in ADR-003's context table."""
@@ -22,6 +34,13 @@ def regime_of(well_id: int) -> str:
     if well_id in ATYPICAL_REGIME_WELL_IDS:
         return "atipico"
     raise ValueError(f"well_id desconocido para USROP: {well_id}")
+
+
+def is_in_known_limitation_zone(md: float) -> bool:
+    """Whether `md` (meters) falls inside KNOWN_LIMITATION_MD_RANGE_M -- the
+    documented high-error depth band. Inclusive on both ends."""
+    low, high = KNOWN_LIMITATION_MD_RANGE_M
+    return low <= md <= high
 
 
 @dataclass(frozen=True)

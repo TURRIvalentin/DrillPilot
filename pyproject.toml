@@ -29,6 +29,7 @@ dev = [
     "ruff",
     "mypy",
     "pre-commit",
+    "httpx",
 ]
 
 [build-system]
@@ -45,6 +46,12 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# fastapi.Depends(...) in a default argument is the framework's documented pattern,
+# not the mutable-default footgun B008 warns about -- ruff's own docs recommend this
+# exact whitelist entry for FastAPI projects.
+extend-immutable-calls = ["fastapi.Depends"]
 
 [tool.ruff.format]
 
