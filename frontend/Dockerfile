@@ -17,6 +17,18 @@ RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml ./
 COPY ml ./ml
+COPY docs/data_checksums.json ./docs/data_checksums.json
+
+# USROP CSVs for the "cargar ejemplo real" button: downloaded and
+# checksum-verified at BUILD time (same script as local dev setup), never
+# committed to the repo (CC BY-NC-SA, no redistribution -- ADR-001) and
+# never copied from the host (unlike docker-compose's local ./data mount,
+# which ECS has no equivalent of) -- see
+# docs/adr/008-frontend-sample-data-build-time-download.md.
+# Placed before COPY frontend so this cache layer only invalidates when the
+# download script or the pinned checksums change, not on every frontend/ edit.
+RUN python ml/data/download_usrop.py
+
 COPY frontend ./frontend
 RUN uv pip install --system ".[ml,frontend]"
 

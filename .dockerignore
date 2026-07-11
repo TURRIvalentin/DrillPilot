@@ -13,6 +13,7 @@ mlruns/
 mlflow.db
 data/
 docs/
+!docs/data_checksums.json
 tests/
 *.md
 .env
