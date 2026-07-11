@@ -17,6 +17,7 @@ from backend.app.schemas.explain import ExplainRequest, ExplainResponse, Feature
 from backend.app.schemas.predict import PredictionItem, PredictionRequest, PredictionResponse
 from backend.app.schemas.reading import Reading
 from ml.evaluation.metrics import is_in_known_limitation_zone
+from ml.features.pipeline import is_insufficient_history
 from ml.inference.predict import load_production_model, predict_rop
 
 
@@ -60,7 +61,10 @@ class InferenceService:
             )
             for md, pred in zip(history["MD"], preds, strict=True)
         ]
-        return PredictionResponse(predictions=items)
+        return PredictionResponse(
+            predictions=items,
+            insufficient_history=is_insufficient_history(len(request.readings)),
+        )
 
     def explain(self, request: ExplainRequest) -> ExplainResponse:
         """Explain the LAST reading of the window only (ADR-005) -- SHAP cost scales
@@ -95,6 +99,7 @@ class InferenceService:
             md=md,
             predicted_rop=predicted_rop,
             known_limitation_zone=is_in_known_limitation_zone(md),
+            insufficient_history=is_insufficient_history(len(request.readings)),
             base_value=float(explanation.base_values[0]),
             contributions=contributions,
         )

@@ -52,6 +52,22 @@ DIRECT_FEATURE_COLUMNS: tuple[str, ...] = (
 
 _REQUIRED_INPUT_COLUMNS = ("well_id", *DIRECT_FEATURE_COLUMNS)
 
+# Default/recommended number of preceding rows for the rolling-window features.
+# Windows shorter than this still work (min_periods=1, see transform() below) but are
+# under-smoothed -- ADR-004 calls this out explicitly as the "recomendado >=10 filas"
+# threshold below which the backend's insufficient_history response flag activates
+# (see backend/app/services/inference_service.py). Single source of truth: both the
+# transformer's own default and the backend's threshold read this constant, so they
+# cannot drift apart.
+DEFAULT_ROLLING_WINDOW: int = 10
+
+
+def is_insufficient_history(n_rows: int) -> bool:
+    """Whether a window of `n_rows` readings is shorter than
+    DEFAULT_ROLLING_WINDOW -- the backend's insufficient_history response flag (M7)
+    calls this with the number of readings in the request."""
+    return n_rows < DEFAULT_ROLLING_WINDOW
+
 
 class USROPFeatureTransformer(BaseEstimator, TransformerMixin):  # type: ignore[misc]
     """Direct + backward-looking window features for USROP, grouped by well_id.
@@ -60,10 +76,10 @@ class USROPFeatureTransformer(BaseEstimator, TransformerMixin):  # type: ignore[
     ----------
     rolling_window:
         Number of preceding rows (within the same well) used for the rolling-window
-        features. Default 10.
+        features. Default DEFAULT_ROLLING_WINDOW (10).
     """
 
-    def __init__(self, rolling_window: int = 10) -> None:
+    def __init__(self, rolling_window: int = DEFAULT_ROLLING_WINDOW) -> None:
         self.rolling_window = rolling_window
 
     def fit(self, X: pd.DataFrame, y: pd.Series | None = None) -> USROPFeatureTransformer:

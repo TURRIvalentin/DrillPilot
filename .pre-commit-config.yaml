@@ -22,3 +22,8 @@ repos:
     hooks:
       - id: mypy
         exclude: ^tests/
+        # pydantic/fastapi ship real inline types (unlike sklearn, which is why its
+        # base classes need `# type: ignore[misc]` at the call site instead) -- without
+        # these installed in the hook's isolated env, BaseModel/APIRouter resolve to
+        # Any and mypy silently stops checking backend/ instead of raising real errors.
+        additional_dependencies: ["pydantic>=2", "fastapi"]

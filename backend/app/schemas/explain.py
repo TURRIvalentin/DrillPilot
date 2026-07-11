@@ -32,6 +32,14 @@ class ExplainResponse(BaseModel):
             "(634-988 m) -- ver PredictionItem.known_limitation_zone."
         ),
     )
+    insufficient_history: bool = Field(
+        ...,
+        description=(
+            "True si la ventana recibida tiene menos de "
+            "ml.features.pipeline.DEFAULT_ROLLING_WINDOW (10) filas -- ver "
+            "PredictionResponse.insufficient_history."
+        ),
+    )
     base_value: float = Field(
         ...,
         description="Valor base de SHAP (prediccion promedio del modelo antes de las contribuciones)",

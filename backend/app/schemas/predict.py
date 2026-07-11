@@ -40,3 +40,17 @@ class PredictionResponse(BaseModel):
     predictions: list[PredictionItem] = Field(
         ..., description="Una prediccion por lectura recibida, en el mismo orden."
     )
+    insufficient_history: bool = Field(
+        ...,
+        description=(
+            "True si la ventana recibida tiene menos de "
+            "ml.features.pipeline.DEFAULT_ROLLING_WINDOW (10) filas -- el minimo "
+            "recomendado por docs/adr/004-inference-input-contract.md para que las "
+            "features de ventana (WOB_rolling_mean_10, RPM_rolling_mean_10) no queden "
+            "en su regimen degradado de poco historial. Una sola ventana corta afecta "
+            "a todas las predicciones de la respuesta por igual, por eso es un campo "
+            "a nivel de respuesta, no por lectura (a diferencia de "
+            "known_limitation_zone). La request sigue siendo valida (ADR-004 acepta "
+            "minimo 1 fila) -- esto solo expone la degradacion, no la rechaza."
+        ),
+    )

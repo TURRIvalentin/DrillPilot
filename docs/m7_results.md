@@ -61,16 +61,35 @@ pipeline o el modelo por su cuenta.
   Una fila con `MD` no creciente dentro de su `well_id` es rechazada con 422 (el
   `ValueError` que ya lanza `USROPFeatureTransformer._validate_input`, mapeado por
   `backend/app/core/exceptions.py`).
-- **`/predict`** devuelve una `PredictionItem` por fila recibida:
-  `{md, predicted_rop, known_limitation_zone}`.
+- **`/predict`** devuelve `{predictions: [PredictionItem, ...], insufficient_history}`,
+  donde cada `PredictionItem` es `{md, predicted_rop, known_limitation_zone}`.
 - **`/explain`** devuelve una sola explicación, de la última fila de la ventana:
-  `{md, predicted_rop, known_limitation_zone, base_value, contributions[]}`, donde
-  `contributions` trae `{feature, value, shap_value}` para las 14 features del
-  pipeline. La propiedad de aditividad de SHAP
+  `{md, predicted_rop, known_limitation_zone, insufficient_history, base_value,
+  contributions[]}`, donde `contributions` trae `{feature, value, shap_value}` para
+  las 14 features del pipeline. La propiedad de aditividad de SHAP
   (`sum(shap_value) + base_value == predicted_rop`) se verifica explícitamente en
   `tests/backend/test_explain.py::test_explain_satisfies_shap_additivity`.
 - **`/health`** devuelve `{status, model_loaded, model_uri}` -- `status="degraded"`
   si el modelo no pudo cargarse al arrancar.
+
+### Dos señales de confianza, mismo principio de diseño
+
+`known_limitation_zone` (por lectura, según `MD`) e `insufficient_history` (por
+request, según el tamaño de la ventana recibida) son la misma idea aplicada dos
+veces: **la API nunca devuelve una predicción degradada sin decirlo.** Ninguna de
+las dos rechaza la request -- ADR-004 ya estableció que 1 fila es una entrada
+válida, y `KNOWN_LIMITATION_MD_RANGE_M` no es una razón para negarse a predecir,
+solo para advertir. Ambas son constantes nombradas con una única fuente de verdad
+(`ml.evaluation.metrics.KNOWN_LIMITATION_MD_RANGE_M` y
+`ml.features.pipeline.DEFAULT_ROLLING_WINDOW`, esta última también el default real
+de `USROPFeatureTransformer.rolling_window`, no un número mágico separado), cada
+una con su predicado (`is_in_known_limitation_zone`, `is_insufficient_history`) que
+el servicio llama directamente en vez de reimplementar la comparación.
+
+`insufficient_history` es un campo a nivel de respuesta (no por `PredictionItem`)
+porque el tamaño de la ventana es una propiedad de la request completa, no de una
+lectura individual -- una ventana de 5 filas degrada igual a las 5 predicciones que
+devuelve, no solo a la última.
 
 ## Pruebas manuales contra el modelo real
 
@@ -110,6 +129,10 @@ más allá de este punto, no como el número exacto en 634m.
   M7 -- confirma que el flag se activa dentro de la banda (`/predict` y
   `/explain`), no se activa fuera, los dos límites (634.0 y 988.0) son inclusive, y
   el flag se apaga justo pasado el límite superior (988.1).
+- `test_insufficient_history.py` (5): análogo al anterior, para el flag agregado
+  post-M7 -- confirma que `insufficient_history` se activa con ventanas de 1, 5 y 9
+  filas, no se activa con 10+ (en `/predict` y `/explain`), y que una ventana corta
+  sigue siendo aceptada (200, no rechazada).
 
 Fixtures (`tests/backend/conftest.py`): sin acceso a MLflow ni red -- cada test
 inyecta un pipeline pequeño y ya ajustado vía `app.dependency_overrides`, mismo
@@ -118,7 +141,7 @@ patrón que `tests/ml/test_predict.py`. `/predict` y `/health` usan
 (`shap.TreeExplainer` no soporta `GlobalMeanBaseline`), así que usa un LightGBM
 diminuto (`n_estimators=5`) ajustado sobre 20 filas sintéticas.
 
-Suite completa del proyecto: **80/80 tests pasando** (61 en `tests/ml/` + 19 en
+Suite completa del proyecto: **85/85 tests pasando** (61 en `tests/ml/` + 24 en
 `tests/backend/`). 9/9 hooks de pre-commit pasando (`trailing-whitespace`,
 `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-added-large-files`,
 `check-merge-conflict`, `ruff`, `ruff-format`, `mypy`).
@@ -146,6 +169,25 @@ Suite completa del proyecto: **80/80 tests pasando** (61 en `tests/ml/` + 19 en
   instalada a favor de `HTTP_422_UNPROCESSABLE_CONTENT` (mismo código 422);
   actualizado en `backend/app/core/exceptions.py` para no dejar un warning de
   deprecación nuevo en la suite.
+- **Hallazgo al agregar `insufficient_history`, corregido acá**: el "9/9 pre-commit"
+  reportado al cerrar M7 fue un falso positivo de cache. El hook de mypy corre en un
+  entorno aislado (`repo: mirrors-mypy`) sin `pydantic` ni `fastapi` instalados (no
+  había `additional_dependencies` declarado); sin esas librerías, cada clase que
+  subclasea `BaseModel` resuelve a `Any` y mypy debería marcar
+  `Class cannot subclass "BaseModel" (has type "Any")` en los 5 schemas y errores
+  de decorador sin tipar en cada router -- exactamente el mismo patrón por el que
+  las subclases de `BaseEstimator`/`RegressorMixin` de `ml/` ya llevan
+  `# type: ignore[misc]`. La primera vez pasó igual porque `.mypy_cache/` tenía
+  resultados de una corrida anterior con `.venv/Scripts/python.exe -m mypy .`
+  directo (que sí ve `pydantic`/`fastapi` instalados en el venv del proyecto), y el
+  hook aislado reusó ese cache en vez de re-chequear. Al tocar `predict.py` y
+  `explain.py` para `insufficient_history`, la cache se invalidó y el error real
+  salió a la luz. Se corrigió agregando `additional_dependencies: ["pydantic>=2",
+  "fastapi"]` al hook de mypy en `.pre-commit-config.yaml` -- a diferencia de
+  sklearn (sin stubs propios, de ahí el `type: ignore` puntual), pydantic y fastapi
+  sí traen tipos inline reales, así que instalarlos en el entorno del hook habilita
+  chequeo real en vez de silenciarlo. Verificado borrando `.mypy_cache/` y
+  corriendo el hook limpio: pasa genuinamente.
 
 ## Fuera de alcance (explícitamente, por instrucción del usuario)
 
