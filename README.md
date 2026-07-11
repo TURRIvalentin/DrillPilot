@@ -1,5 +1,9 @@
 # DrillPilot
 
+<!-- TODO: reemplazar <owner>/<repo> una vez que el repositorio tenga un remoto
+     de GitHub -- ver docs/m9_m10_results.md, sección CI, para el motivo. -->
+[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+
 Plataforma open source de Machine Learning para predecir el Rate of
 Penetration (ROP) durante la perforación de pozos de petróleo, construida
 con arquitectura de producción (no un notebook) y foco en explicabilidad
@@ -13,12 +17,27 @@ que requieren historial. Ver
 
 ## Estado
 
-🚧 Work in progress — M0-M8 completos (scaffolding, datos, features,
+🚧 Work in progress — M0-M10 completos (scaffolding, datos, features,
 baselines, explicabilidad, registry + inferencia, API FastAPI, frontend
-Streamlit). M9-M10 (Docker + CI) sin arrancar. Ver [docs/adr/](docs/adr/)
-para las decisiones de diseño tomadas hasta el momento.
+Streamlit, Docker, CI). Deploy real a AWS ECS Fargate sin arrancar. Ver
+[docs/adr/](docs/adr/) para las decisiones de diseño tomadas hasta el
+momento.
 
 ## Cómo correrlo localmente
+
+### Con Docker (backend + frontend juntos)
+
+```bash
+docker compose up --build
+# backend: http://localhost:8010  (ver docker-compose.yml para el mapeo de puertos)
+# frontend: http://localhost:8511
+```
+
+El modelo va empaquetado dentro de la imagen del backend en build time, no se
+carga desde MLflow en runtime — ver
+[docs/adr/006-model-packaging-deploy.md](docs/adr/006-model-packaging-deploy.md).
+
+### Sin Docker
 
 ```bash
 uv pip install -e ".[ml,api,frontend,dev]"

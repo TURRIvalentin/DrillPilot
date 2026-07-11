@@ -12,6 +12,7 @@ from typing import Any
 import pandas as pd
 import shap
 
+from backend.app.core.config import settings
 from backend.app.core.exceptions import ModelNotLoadedError
 from backend.app.schemas.explain import ExplainRequest, ExplainResponse, FeatureContribution
 from backend.app.schemas.predict import PredictionItem, PredictionRequest, PredictionResponse
@@ -39,8 +40,15 @@ class InferenceService:
         self._explainer: shap.TreeExplainer | None = None
 
     def load(self) -> None:
+        """Loads from `settings.model_uri` (DRILLPILOT_MODEL_URI, see
+        backend/app/core/config.py) -- previously this always loaded the hardcoded
+        MODEL_URI default and silently ignored the setting entirely, which meant a
+        container pointed at a local baked-in artifact via DRILLPILOT_MODEL_URI would
+        have still tried (and failed, no tracking store at runtime) to resolve the
+        "production" registry alias instead. Fixed for M9 (see
+        docs/adr/006-model-packaging-deploy.md)."""
         if self._model is None:
-            self._model = load_production_model()
+            self._model = load_production_model(settings.model_uri)
 
     @property
     def is_loaded(self) -> bool:

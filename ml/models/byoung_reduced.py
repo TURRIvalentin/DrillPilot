@@ -162,7 +162,7 @@ class BourgoyneYoungReduced(BaseEstimator, RegressorMixin):  # type: ignore[misc
         self._validate_input(X)
         terms = _compute_terms(X, self.wob_threshold_)
         log_rop = self._regressor.predict(terms[["x2", "x5", "x6"]])
-        return np.exp(log_rop)
+        return np.asarray(np.exp(log_rop))
 
     @staticmethod
     def _validate_input(X: pd.DataFrame) -> None:

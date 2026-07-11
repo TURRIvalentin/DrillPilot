@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    ports:
+      - "8010:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,sys,urllib.request; r=json.load(urllib.request.urlopen('http://localhost:8000/health', timeout=3)); sys.exit(0 if r.get('model_loaded') else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: frontend
+    ports:
+      - "8511:8501"
+    environment:
+      DRILLPILOT_BACKEND_URL: http://backend:8000
+    volumes:
+      # Local USROP CSVs (if already downloaded, see ml/data/download_usrop.py) --
+      # read-only, never baked into the image (CC BY-NC-SA license, see README).
+      # Without this the "cargar ejemplo real" button errors; the manual editor
+      # still works either way.
+      - ./data:/app/data:ro
+    depends_on:
+      backend:
+        condition: service_healthy

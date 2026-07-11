@@ -28,9 +28,16 @@ import pandas as pd
 MODEL_URI = "models:/drillpilot-rop@production"
 
 
-def load_production_model() -> Any:
-    """Load the combined features+model artifact aliased 'production' in MLflow."""
-    return mlflow.sklearn.load_model(MODEL_URI)
+def load_production_model(model_uri: str = MODEL_URI) -> Any:
+    """Load the combined features+model artifact from `model_uri`.
+
+    Defaults to the "production" alias in the MLflow registry (dev/local use, needs
+    a reachable tracking store). In a deployed container there is no tracking store
+    at runtime (see docs/adr/006-model-packaging-deploy.md) -- the caller passes a
+    plain local path there instead (e.g. DRILLPILOT_MODEL_URI, see
+    backend/app/core/config.py), which mlflow.sklearn.load_model() also accepts.
+    """
+    return mlflow.sklearn.load_model(model_uri)
 
 
 def predict_rop(history: pd.DataFrame, model: Any | None = None) -> np.ndarray:

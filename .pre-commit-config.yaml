@@ -7,7 +7,11 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
-        args: ["--maxkb=1024"]
+        # 2048: docker/model_artifact/model.pkl (~1.9 MB) is a deliberate exception,
+        # not a mistake -- the exported, pinned model artifact Docker bakes into the
+        # image at build time, per docs/adr/006-model-packaging-deploy.md. Everything
+        # else in the repo is expected to stay well under the old 1024 limit.
+        args: ["--maxkb=2048"]
       - id: check-merge-conflict
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -22,8 +26,15 @@ repos:
     hooks:
       - id: mypy
         exclude: ^tests/
-        # pydantic/fastapi ship real inline types (unlike sklearn, which is why its
-        # base classes need `# type: ignore[misc]` at the call site instead) -- without
-        # these installed in the hook's isolated env, BaseModel/APIRouter resolve to
-        # Any and mypy silently stops checking backend/ instead of raising real errors.
-        additional_dependencies: ["pydantic>=2", "fastapi"]
+        # pydantic/fastapi/streamlit ship real inline types, and requests has a
+        # well-maintained stub package (types-requests) -- unlike sklearn, which is
+        # why its base classes need `# type: ignore[misc]` at the call site instead.
+        # Without these installed in the hook's isolated env, BaseModel/APIRouter/
+        # st.cache_data resolve to Any and mypy silently stops checking backend/ and
+        # frontend/ instead of raising real errors. numpy is pinned explicitly:
+        # streamlit pulls it in transitively, and an unpinned resolve grabbed a newer
+        # numpy (2.5.1) with different/stricter array-typing stubs than the project's
+        # pinned resolve (2.4.6), producing spurious errors in ml/ that don't
+        # reproduce against the project's own venv -- pinning keeps the hook
+        # representative of what the project actually runs.
+        additional_dependencies: ["pydantic>=2", "fastapi", "streamlit", "requests", "types-requests", "numpy==2.4.6"]
