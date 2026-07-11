@@ -23,6 +23,13 @@ Streamlit, Docker, CI). Deploy real a AWS ECS Fargate sin arrancar. Ver
 [docs/adr/](docs/adr/) para las decisiones de diseño tomadas hasta el
 momento.
 
+## Deploy / Demo
+
+⚠️ Este despliegue usa IP pública directa sin HTTPS, por decisión de costo
+documentada en [ADR-007](docs/adr/007-infrastructure-deploy.md) — pensado
+para demos de portfolio con datos sintéticos, no para tráfico de producción
+real ni datos sensibles.
+
 ## Cómo correrlo localmente
 
 ### Con Docker (backend + frontend juntos)
