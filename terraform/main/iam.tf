@@ -85,17 +85,20 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = ["*"]
   }
 
-  # Leer las task definitions de este proyecto (todas las revisiones, de ahí
-  # el ":*") -- acotado a las dos familias de acá, no a cualquier task
-  # definition de la cuenta.
+  # Leer la task definition actual de cada familia (por nombre de familia,
+  # sin revisión -- la forma estándar de pedir "la revisión activa"). Igual
+  # que RegisterTaskDefinition, DescribeTaskDefinition no soporta permisos a
+  # nivel de recurso: la guía de IAM de ECS la lista sin "Resource types"
+  # scopeable, y en la práctica AWS evalúa el request contra Resource "*"
+  # incluso con un ARN acotado en la policy (confirmado en CI: la llamada
+  # con family name devolvió AccessDeniedException "on resource: *" pese al
+  # ARN scoped que había acá antes) -- Resource = "*" es inevitable acá, no
+  # un permiso amplio "por las dudas".
   statement {
-    sid     = "ECSDescribeTaskDefinition"
-    effect  = "Allow"
-    actions = ["ecs:DescribeTaskDefinition"]
-    resources = [
-      "arn:aws:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task-definition/${var.name_prefix}-backend:*",
-      "arn:aws:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task-definition/${var.name_prefix}-frontend:*",
-    ]
+    sid       = "ECSDescribeTaskDefinition"
+    effect    = "Allow"
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["*"]
   }
 
   # Apuntar el servicio corriendo a la nueva revisión de task definition,
