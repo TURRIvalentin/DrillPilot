@@ -1,0 +1,29 @@
+{
+  "run_id": "7a98edb39bf84f4e99f00937eccd12c8",
+  "pipeline": "simplificado (14 features: sin WOB_diff_1 ni T_rolling_std_10)",
+  "params": {
+    "objective": "mae",
+    "num_leaves": "70",
+    "learning_rate": "0.1094197953583288",
+    "max_depth": "11",
+    "min_child_samples": "88",
+    "colsample_bytree": "0.7171781358782057",
+    "subsample": "0.6712579968688783",
+    "subsample_freq": "3",
+    "reg_alpha": "0.0029151336209232823",
+    "reg_lambda": "0.0009312908517953582",
+    "n_estimators": "303",
+    "random_state": "42",
+    "verbosity": "-1",
+    "n_trials": "15"
+  },
+  "metrics": {
+    "cv_mae_lowo": 8.371139747386671,
+    "test_pooled": 10.88550294326656,
+    "test_well_0": 17.469412601924528,
+    "test_well_3": 8.172079306389733,
+    "test_well_5": 13.765612979694817,
+    "test_regime_dominante": 9.621308413828903,
+    "test_regime_atipico": 17.469412601924528
+  }
+}

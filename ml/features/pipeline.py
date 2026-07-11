@@ -17,6 +17,13 @@ windows, no negative shifts) and grouped by well_id before any rolling/diff, per
 docs/adr/003-split-strategy.md decision #3. tests/ml/test_features.py enforces both
 properties directly.
 
+As of M5, only WOB_rolling_mean and RPM_rolling_mean remain. T_rolling_std and
+WOB_diff_1 were removed: M4's feature ablation showed test MAE improved without them,
+and M5's SHAP analysis confirmed why -- their mean(|SHAP|) was 0.10 and 0.01
+respectively (vs. 0.29 for WOB_rolling_mean and 1.82 for RPM_rolling_mean), next to no
+signal for the overfitting risk they added. See docs/feature_dictionary.md and
+docs/m5_results.md for the full evidence.
+
 This transformer learns nothing from the data it is fit on (no per-well or per-split
 statistics are stored) -- every feature is computed independently per row from that
 row's own well history. There is therefore no leakage risk in reusing the same fitted
@@ -79,12 +86,6 @@ class USROPFeatureTransformer(BaseEstimator, TransformerMixin):  # type: ignore[
         features[f"RPM_rolling_mean_{window}"] = grouped["RPM"].transform(
             lambda s: s.rolling(window=window, min_periods=1).mean()
         )
-        features[f"T_rolling_std_{window}"] = (
-            grouped["T"]
-            .transform(lambda s: s.rolling(window=window, min_periods=1).std())
-            .fillna(0.0)
-        )
-        features["WOB_diff_1"] = grouped["WOB"].transform(lambda s: s.diff(1)).fillna(0.0)
 
         return features.reset_index(drop=True)
 
@@ -94,8 +95,6 @@ class USROPFeatureTransformer(BaseEstimator, TransformerMixin):  # type: ignore[
             *DIRECT_FEATURE_COLUMNS,
             f"WOB_rolling_mean_{window}",
             f"RPM_rolling_mean_{window}",
-            f"T_rolling_std_{window}",
-            "WOB_diff_1",
         ]
 
     @staticmethod

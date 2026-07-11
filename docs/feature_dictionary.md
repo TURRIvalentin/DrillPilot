@@ -1,9 +1,15 @@
-# Diccionario de features (M3)
+# Diccionario de features (M3, actualizado en M5)
 
 Producido por [`ml.features.pipeline.USROPFeatureTransformer`](../ml/features/pipeline.py),
 que recibe el output de `ml.features.dataset.load_combined_dataset` (datos limpios de
-M2 + columna `well_id`) y devuelve la matriz de 16 features documentada acá. No incluye
-selección de modelo, tuning ni entrenamiento — eso es M4.
+M2 + columna `well_id`) y devuelve la matriz de **14 features** documentada acá. No
+incluye selección de modelo, tuning ni entrenamiento — eso es M4.
+
+**Actualización M5:** el pipeline original de M3 tenía 16 features (4 de ventana). Se
+sacaron `WOB_diff_1` y `T_rolling_std_10` tras evidencia combinada de la ablation de
+M4 y el análisis de SHAP de M5 — ver la sección "Features de ventana" más abajo y
+[docs/m5_results.md](m5_results.md#simplificación-del-pipeline-de-m3-post-shap) para
+el detalle completo, incluyendo la comparación de performance antes/después.
 
 ## Columnas de entrada excluidas de la matriz de features (y por qué)
 
@@ -40,11 +46,11 @@ unidad y rango completo de cada una — no se repite acá.
 | `GR` | Gamma ray — proxy de litología, disponible en tiempo real (post-imputación de M2 donde corresponde). |
 | `gr_imputed` (0/1) | Trazabilidad de la imputación de GR (regla 3, M2): deja que el modelo (y SHAP) distingan explícitamente una lectura medida de una interpolada, en vez de tratarlas como igualmente confiables. |
 
-## Features de ventana (4)
+## Features de ventana (2, reducidas de 4 en M5)
 
-Todas calculadas con `groupby("well_id")` **antes** de cualquier `.rolling()`/`.diff()`
+Todas calculadas con `groupby("well_id")` **antes** de cualquier `.rolling()`
 (nunca sobre el DataFrame concatenado directo) y **solo hacia atrás** — sin
-`center=True`, sin `shift` negativo — per
+`center=True` — per
 [ADR-003 §3](adr/003-split-strategy.md). `tests/ml/test_features.py` verifica ambas
 propiedades de forma explícita: no cruzan el límite entre pozos
 (`test_no_leakage_across_well_boundary`) y no miran hacia adelante
@@ -57,15 +63,30 @@ Ventana por defecto: `N=10` filas anteriores dentro del mismo pozo (parámetro
 |---|---|---|
 | `WOB_rolling_mean_{N}` | Media móvil de WOB, últimas N filas del mismo pozo | Proxy de la tendencia reciente de carga sobre la broca — distingue una carga sostenida de un pico transitorio, más informativo que el valor instantáneo solo. |
 | `RPM_rolling_mean_{N}` | Media móvil de RPM, últimas N filas del mismo pozo | Proxy del régimen reciente de rotación — ayuda a distinguir tramos sostenidos de perforación rotativa de tramos de deslizamiento (ver `docs/eda_findings.md`, sección RPM==0), más allá del valor puntual de una sola fila. |
-| `T_rolling_std_{N}` | Desvío estándar móvil de Torque, últimas N filas del mismo pozo | Proxy de perforación errática/vibración reciente (stick-slip u otra disfunción) — un torque inestable en la ventana reciente es información que el valor instantáneo de torque no captura. |
-| `WOB_diff_1` | `WOB[fila actual] − WOB[fila anterior]` dentro del mismo pozo | Proxy de qué tan agresivamente está cambiando el driller el peso sobre la broca ahora mismo — la tasa de cambio, no el nivel, que tiene su propia relación con la respuesta transitoria del ROP. |
+
+### Sacadas en M5: `T_rolling_std_{N}` y `WOB_diff_1`
+
+Estaban en el pipeline original de M3 con la misma justificación física que las dos
+de arriba (`T_rolling_std_{N}`: proxy de perforación errática/vibración reciente;
+`WOB_diff_1`: tasa de cambio de WOB). Se sacaron con evidencia concreta, no por
+sospecha:
+
+- **Ablation de M4** (`docs/m4_results.md`): un modelo entrenado sin las 4 features
+  de ventana generalizaba mejor en test (2-5% de mejora) que el modelo completo, con
+  CV MAE casi idéntico — señal de que al menos parte de esas 4 features aportaba
+  sobreajuste sin beneficio real.
+- **SHAP de M5** (`docs/m5_results.md`) identificó *cuáles* de las 4 eran el
+  problema: `mean(|SHAP|)` de `T_rolling_std_10` = 0.10 y de `WOB_diff_1` = 0.01 —
+  la importancia más baja de las 16 features (excluyendo `gr_imputed`), contra 1.82
+  de `RPM_rolling_mean_10` y 0.29 de `WOB_rolling_mean_10`, que sí se mantienen.
+
+Sacarlas y reentrenar con el mismo protocolo de Optuna/LOWO-CV confirmó la hipótesis:
+el modelo de 14 features mejoró el test pooled 6.1% respecto al de 16 (y 9.1% en el
+régimen dominante), con una única regresión menor en el pozo atípico (-3.8%). Detalle
+completo en
+[docs/m5_results.md](m5_results.md#simplificación-del-pipeline-de-m3-post-shap).
 
 ### Manejo del primer registro de cada pozo (borde de ventana) — qué significa cada valor
-
-Hay **dos estrategias distintas** en las 4 features, no una sola convención genérica,
-y ninguna de las dos produce un valor estadísticamente equivalente al de una fila con
-historial completo. Se documentan por separado para no dar a entender que "no hay
-`NaN`" es lo mismo que "todas las filas son igual de confiables".
 
 **`WOB_rolling_mean_{N}` y `RPM_rolling_mean_{N}` — ventana parcial (`min_periods=1`).**
 No hay relleno artificial: la fila *k* de cada pozo (con *k* = 0, 1, ..., N-2) calcula
@@ -84,32 +105,19 @@ En la práctica, con `N=10` (default), las primeras 9 filas de cada uno de los 7
 muestras de las nominales. No se excluyen ni se marcan con un flag separado en esta
 iteración — a diferencia de `gr_imputed`, que sí distingue explícitamente valor medido
 de imputado, acá esa distinción no existe todavía. Queda anotado como una asimetría
-menor entre features, no resuelta en M3.
+menor entre features, no resuelta.
 
-**`T_rolling_std_{N}` — ventana parcial + caso degenerado en la fila 0.** Comparte el
-comportamiento de ventana parcial de arriba (filas 1 a N-2 con menos de N muestras),
-pero la fila 0 es un caso distinto, no solo "una muestra": el desvío estándar de una
-sola observación no está matemáticamente definido (pandas devuelve `NaN`, no `0`), así
-que el `0.0` que aparece ahí **no es una medición de "sin variabilidad" — es un
-placeholder elegido para no dejar `NaN` en la matriz**, sin contenido estadístico
-propio. A partir de la fila 1 (2+ muestras) el desvío ya es un número real, aunque de
-baja precisión hasta llegar a la ventana completa en la fila N-1.
+Resultado: la matriz de features no tiene ningún `NaN` (verificado contra los datos
+reales de los 7 pozos, 198,928 filas, 0 valores faltantes en la matriz final), pero
+"sin `NaN`" no es lo mismo que "sin filas de confiabilidad reducida" — las primeras
+`N-1` filas de cada pozo (multiplicado por 7 pozos) llevan una media móvil calculada
+sobre menos muestras de las nominales, por diseño, no por error.
 
-**`WOB_diff_1` — sin ventana parcial, `fillna(0.0)` puro.** No es un caso de "menos
-muestras de las nominales": en la fila 0 de cada pozo no existe *ninguna* fila
-anterior dentro de ese pozo, así que el `diff` no tiene con qué calcularse (a
-diferencia de las medias/desvíos móviles, acá no hay una versión "parcial" posible con
-0 muestras previas). El `0.0` es una **asunción de modelado explícita** ("sin cambio
-registrado, tratar como si viniera de un estado estable"), no una medición ni una
-aproximación con menos datos — es cualitativamente distinta de los dos casos
-anteriores y no debería leerse como "el WOB no cambió al empezar a perforar este
-tramo", que no es algo que el dataset permita afirmar.
-
-Resultado combinado: la matriz de features no tiene ningún `NaN` (verificado contra
-los datos reales de los 7 pozos, 198,928 filas, 0 valores faltantes en la matriz
-final), pero "sin `NaN`" no es lo mismo que "sin filas de confiabilidad reducida" — las
-primeras `N-1` filas de cada pozo (multiplicado por 7 pozos) llevan features de
-ventana menos informativas que el resto, por diseño, no por error.
+*(Nota histórica: `T_rolling_std_{N}` y `WOB_diff_1`, sacadas en M5, tenían cada una
+su propia estrategia de borde distinta a la de arriba — `std` de 1 muestra
+indefinido con placeholder `0.0`, y `diff` sin versión parcial posible en la fila 0.
+Ya no aplica, se documenta acá solo por si aparecen en artefactos/modelos previos a
+M5.)*
 
 ## Tamaño de ventana (N) en unidades físicas reales
 

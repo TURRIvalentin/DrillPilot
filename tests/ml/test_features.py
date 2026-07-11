@@ -163,7 +163,6 @@ def test_no_leakage_across_well_boundary() -> None:
 
     first_row_well_b = out.iloc[5]
     assert first_row_well_b["WOB_rolling_mean_3"] == 1.0
-    assert first_row_well_b["WOB_diff_1"] == 0.0
 
 
 def test_no_lookahead_truncating_future_rows_does_not_change_past_features() -> None:
@@ -174,23 +173,6 @@ def test_no_lookahead_truncating_future_rows_does_not_change_past_features() -> 
     truncated = transformer.fit_transform(df.iloc[:5].reset_index(drop=True))
 
     pd.testing.assert_frame_equal(truncated, full.iloc[:5].reset_index(drop=True))
-
-
-def test_diff_and_rolling_std_first_row_per_well_are_zero_not_nan() -> None:
-    df = pd.concat(
-        [
-            _well_frame(0, md=[1.0, 2.0], wob=[10.0, 20.0], T=[1.0, 2.0]),
-            _well_frame(1, md=[1.0, 2.0], wob=[5.0, 6.0], T=[3.0, 4.0]),
-        ],
-        ignore_index=True,
-    )
-
-    out = USROPFeatureTransformer(rolling_window=3).fit_transform(df)
-
-    first_rows = out.iloc[[0, 2]]
-    assert (first_rows["WOB_diff_1"] == 0.0).all()
-    assert (first_rows["T_rolling_std_3"] == 0.0).all()
-    assert not first_rows[["WOB_diff_1", "T_rolling_std_3"]].isna().any().any()
 
 
 def test_rolling_mean_matches_manual_calculation() -> None:
