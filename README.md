@@ -7,9 +7,21 @@ con arquitectura de producción (no un notebook) y foco en explicabilidad
 
 ## Estado
 
-🚧 Work in progress — en fase de scaffolding (M0). Ver
-[docs/adr/](docs/adr/) para las decisiones de diseño tomadas hasta el
-momento.
+🚧 Work in progress — M0-M4 completos (scaffolding, datos, features,
+baselines), M5 (explicabilidad) en curso. Ver [docs/adr/](docs/adr/)
+para las decisiones de diseño tomadas hasta el momento.
+
+## Resultados y límites conocidos
+
+Este proyecto no documenta solo un modelo — documenta los límites reales
+de aplicar ML a un dataset de 7 pozos, con diagnóstico reproducible de
+por qué. El LightGBM tuneado de M4 no logra superar a un baseline
+trivial (media global) en el test final, pese a mostrar una ventaja
+clara en cross-validation; cuatro rondas de diagnóstico en
+[docs/m4_results.md](docs/m4_results.md) muestran que la causa raíz es
+la escasez de pozos por régimen geológico, no la complejidad del modelo
+— incluyendo un caso de manual de un clasificador que aprendió una
+coincidencia de la muestra de entrenamiento en vez de la señal real.
 
 ## Arquitectura
 

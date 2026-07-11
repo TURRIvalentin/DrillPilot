@@ -407,3 +407,75 @@ directa contra el archivo real):
 
 No se puede usar esto para decidir la opción 3 del reporte original todavía — el
 reconocimiento quedó incompleto, no negativo.
+
+## Conclusión
+
+M4 se cierra acá, con un **hallazgo negativo documentado como resultado válido**,
+no como un problema a seguir persiguiendo. El LightGBM tuneado original (la
+corrida `lightgbm-tuned` de `ml/training/train_baselines.py`) queda como el modelo
+candidato que avanza a M5 — ninguna de las variantes de diagnóstico (ablation,
+conservador, regime_score, modelos por régimen) lo reemplaza; existen solo como
+evidencia documentada de por qué no se siguió por ese camino.
+
+### La narrativa completa, en cuatro rondas
+
+**Ronda 1 (por-fold LOWO-CV):** el "64% mejor que el dummy" que motivó cerrar M4
+con un modelo aparentemente sólido resultó ser un promedio engañoso — un solo fold
+(pozo 1) mejoraba 95%, los otros tres solo 11-58%. La señal de que el problema no
+generalizaba ya estaba ahí, visible con solo desagregar, antes de tocar el test.
+
+**Ronda 2 (ablation sin features de ventana):** sacar las 4 features de M3 mejora
+el test 2-5% sin casi costar nada en CV — evidencia real de sobreajuste, pero
+insuficiente por sí sola: el modelo resultante sigue perdiendo contra el dummy.
+
+**Ronda 3 (hiperparámetros conservadores + sesgo de Optuna):** menos flexibilidad
+mueve el resultado hacia el dummy de forma monótona y medible, pero nunca lo
+cruza. Y el proceso de tuning de Optuna estaba, en los hechos, sesgado hacia el
+fold del pozo 1 (correlación 0.80 con el ranking de trials, muy por encima de los
+otros folds) — el "mejor" modelo de M4 fue, en parte, seleccionado por rendir bien
+en el fold equivocado para juzgar generalización real.
+
+**Ronda 4 (experimento de régimen) — la pieza central de esta conclusión:**
+entrenar dos modelos separados, uno por régimen, y evaluarlos con el régimen
+*real* (conocido de antemano) de cada pozo de test dio el mejor resultado de toda
+la investigación: 9.93 MAE pooled, 7.8% mejor que el dummy. Pero ese número
+depende de un supuesto que no se sostiene en un despliegue real — saber a qué
+régimen pertenece un pozo nuevo *antes* de predecir su ROP. El clasificador
+construido para resolver justamente eso (regresión logística sobre `MD` y `HD`,
+ambas variables disponibles en tiempo real) separó el CV-pool con **100% de
+exactitud** y sin embargo acertó solo **16.2%** de las veces en el único pozo
+atípico de test.
+
+Es un caso de manual de un problema más general que específico de este proyecto:
+**el clasificador no aprendió la definición del régimen atípico — aprendió la
+coincidencia de que los únicos 2 pozos atípicos disponibles para entrenarlo (1 y
+6) eran, además, particularmente someros (MD máximo 634 m).** Esa correlación
+accidental (regímen atípico ≈ pozo somero, dentro de esta muestra de 2) es
+indistinguible, con solo 2 ejemplos, de la propiedad real que se quería capturar
+(regímen atípico = comportamiento de ROP alto y errático, independientemente de la
+profundidad). El pozo 0 de test —también atípico, pero con profundidad de hasta
+1206 m, superpuesta con el rango de los pozos dominantes— fue exactamente el caso
+que separaba ambas hipótesis, y reveló que el clasificador había aprendido la
+equivocada. Con solo 2 pozos por régimen en el CV-pool, no hay forma de que
+cualquier clasificador (esta regresión logística o cualquier otro) distinga una
+correlación real de una coincidencia de muestra — se necesitarían más pozos
+atípicos, con rangos de profundidad distintos entre sí, para que esa distinción
+sea siquiera aprendible.
+
+### El bottleneck es escasez de pozos por régimen, no complejidad del modelo
+
+Las cuatro rondas apuntan a la misma causa de fondo por ángulos distintos:
+regularizar ayuda pero no alcanza (ronda 3), simplificar features ayuda pero no
+alcanza (ronda 2), y hasta la idea estructuralmente más prometedora — separar por
+régimen — tropieza con el mismo límite en la pieza que la haría viable en
+producción (ronda 4). Ninguna de las variantes de modelo o de feature engineering
+probadas cerró la brecha; el común denominador en las cuatro es que todas dependen,
+en algún punto, de generalizar a partir de 2 pozos por régimen en el CV-pool, y
+ese es precisamente el eslabón que falla cada vez.
+
+No se decide acá una de las 3 opciones originales del reporte, pero la evidencia
+acumulada deja una lectura clara: la opción 2 (más regularización) ya se probó
+agotada en la ronda 3, y la opción de "régimen" explorada en la ronda 4 termina
+señalando de vuelta a la opción 3 (más pozos) como la única palanca que ataca la
+causa raíz en vez de mitigar sus síntomas. Queda documentado como tal, sin
+implementar ningún cambio adicional sobre el modelo de M4.
