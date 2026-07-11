@@ -72,3 +72,120 @@ jobs:
           tags: drillpilot-frontend:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to ECS (main only)
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # OIDC: sin esto, configure-aws-credentials no puede pedirle un token
+    # a GitHub para intercambiarlo por credenciales de AWS.
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-2
+      ECS_CLUSTER: drillpilot
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nunca access keys estáticas como secret -- este step le pide a AWS
+      # credenciales temporales a cambio del token OIDC del job, usando el
+      # rol creado en terraform/main/iam.tf (scoped a
+      # repo:TURRIvalentin/DrillPilot:ref:refs/heads/main).
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::750907156542:role/drillpilot-github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: vars
+        run: echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Tag por SHA de commit, nunca "latest" -- los repos ECR son
+      # image_tag_mutability=IMMUTABLE (terraform/main/ecr.tf), así que
+      # reusar un tag ya existente fallaría de todos modos.
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: backend
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/drillpilot-backend:${{ steps.vars.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: frontend
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/drillpilot-frontend:${{ steps.vars.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Nueva revisión de task definition a partir de la actual (describe +
+      # editar solo el campo image + volver a registrar) -- no se reescribe
+      # a mano, así que cpu/memory/roles/logConfiguration/etc. quedan
+      # exactamente como los dejó terraform/main/ecs.tf.
+      - name: Register new backend task definition revision
+        id: backend-task-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition drillpilot-backend \
+            --query 'taskDefinition' \
+            --output json \
+          | jq --arg IMAGE "${{ steps.ecr-login.outputs.registry }}/drillpilot-backend:${{ steps.vars.outputs.sha_short }}" \
+              '.containerDefinitions[0].image = $IMAGE
+               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+          > backend-task-def.json
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://backend-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_def_arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Register new frontend task definition revision
+        id: frontend-task-def
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition drillpilot-frontend \
+            --query 'taskDefinition' \
+            --output json \
+          | jq --arg IMAGE "${{ steps.ecr-login.outputs.registry }}/drillpilot-frontend:${{ steps.vars.outputs.sha_short }}" \
+              '.containerDefinitions[0].image = $IMAGE
+               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+          > frontend-task-def.json
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://frontend-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_def_arn=$NEW_ARN" >> "$GITHUB_OUTPUT"
+
+      # Sin --desired-count: el servicio queda con el valor que tenga hoy
+      # (0, ver terraform/main/variables.tf). Escalar a 1 para una demo es
+      # manual, vía docs/runbook_ecs_scale_down.md -- no algo que decida
+      # este pipeline.
+      - name: Update backend service
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service drillpilot-backend \
+            --task-definition "${{ steps.backend-task-def.outputs.task_def_arn }}"
+
+      - name: Update frontend service
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service drillpilot-frontend \
+            --task-definition "${{ steps.frontend-task-def.outputs.task_def_arn }}"
