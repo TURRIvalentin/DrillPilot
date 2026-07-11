@@ -479,3 +479,40 @@ agotada en la ronda 3, y la opción de "régimen" explorada en la ronda 4 termin
 señalando de vuelta a la opción 3 (más pozos) como la única palanca que ataca la
 causa raíz en vez de mitigar sus síntomas. Queda documentado como tal, sin
 implementar ningún cambio adicional sobre el modelo de M4.
+
+## Actualización (2026-07-10) — tras la simplificación de M5: el hallazgo negativo se mantiene, con matices
+
+M5 simplificó el pipeline (sacó `WOB_diff_1` y `T_rolling_std_10` con evidencia de
+SHAP, ver `docs/feature_dictionary.md` y `docs/m5_results.md`) y reentrenó con el
+mismo protocolo. Cifra exacta, sin redondear de más (fuente:
+`docs/m4_metrics.json` para el dummy, `docs/m5_simplified_candidate.json` para el
+candidato simplificado):
+
+| | MAE pooled (test) |
+|---|---|
+| Dummy | 10.767184019115684 |
+| LightGBM simplificado (candidato actual) | 10.88550294326656 |
+| Diferencia | +0.118318924150877 (el candidato es **1.098885% peor** que el dummy) |
+
+**El candidato simplificado sigue sin ganarle al dummy en la métrica pooled — la
+narrativa del proyecto sigue siendo "hallazgo negativo diagnosticado con rigor",
+no "mejora lograda".** Sería impreciso decir que M5 resolvió el problema: no lo
+resolvió, lo redujo. Lo que sí cambió, con la misma precisión:
+
+- El gap contra el dummy se achicó de **-7.681228%** (candidato original de M4,
+  16 features) a **-1.098885%** (candidato simplificado) — una reducción real de
+  ~85% de la distancia, no cosmética.
+- En el **régimen dominante** (pozos 3+5, 85.9% del dataset) el candidato
+  simplificado sí le gana al dummy: 9.621308413828903 contra 9.639384120134098 —
+  **+0.187519% mejor**, aunque el margen es chico y no debería sobre-interpretarse
+  como una victoria contundente.
+- El régimen atípico (pozo 0, 14.1% del dataset) sigue siendo el punto débil y es
+  lo que empuja el número pooled de vuelta a "peor que el dummy" — consistente con
+  todo lo ya diagnosticado sobre escasez de pozos atípicos en el CV-pool.
+
+Conclusión sin forzar el resultado hacia ningún lado: el proyecto tiene evidencia
+sólida de que simplificar con SHAP como guía **ayuda** (medible, en la dirección
+correcta, no ruido), pero la causa raíz (2 pozos atípicos en el CV-pool) sigue sin
+resolverse, y el número que más importa (pooled, el que fija ADR-003 como
+principal) todavía no cruza la línea. El texto original de esta sección arriba se
+mantiene sin editar — esta es una actualización fechada, no una reescritura.

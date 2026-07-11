@@ -5,11 +5,18 @@ Penetration (ROP) durante la perforación de pozos de petróleo, construida
 con arquitectura de producción (no un notebook) y foco en explicabilidad
 (SHAP) sobre cada predicción.
 
+**Sobre el input real del modelo:** no predice a partir de una lectura
+instantánea aislada — necesita una ventana de las últimas lecturas del mismo
+pozo (idealmente 10 o más), porque dos de las features son medias móviles
+que requieren historial. Ver
+[docs/adr/004-inference-input-contract.md](docs/adr/004-inference-input-contract.md).
+
 ## Estado
 
-🚧 Work in progress — M0-M4 completos (scaffolding, datos, features,
-baselines), M5 (explicabilidad) en curso. Ver [docs/adr/](docs/adr/)
-para las decisiones de diseño tomadas hasta el momento.
+🚧 Work in progress — M0-M6 completos (scaffolding, datos, features,
+baselines, explicabilidad, registry + inferencia). M7 (API) sin arrancar.
+Ver [docs/adr/](docs/adr/) para las decisiones de diseño tomadas hasta el
+momento.
 
 ## Resultados y límites conocidos
 
