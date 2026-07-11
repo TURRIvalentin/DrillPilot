@@ -89,6 +89,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       # Nunca access keys estáticas como secret -- este step le pide a AWS
       # credenciales temporales a cambio del token OIDC del job, usando el
       # rol creado en terraform/main/iam.tf (scoped a
