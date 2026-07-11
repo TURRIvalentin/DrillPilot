@@ -13,10 +13,29 @@ que requieren historial. Ver
 
 ## Estado
 
-🚧 Work in progress — M0-M6 completos (scaffolding, datos, features,
-baselines, explicabilidad, registry + inferencia). M7 (API) sin arrancar.
-Ver [docs/adr/](docs/adr/) para las decisiones de diseño tomadas hasta el
-momento.
+🚧 Work in progress — M0-M8 completos (scaffolding, datos, features,
+baselines, explicabilidad, registry + inferencia, API FastAPI, frontend
+Streamlit). M9-M10 (Docker + CI) sin arrancar. Ver [docs/adr/](docs/adr/)
+para las decisiones de diseño tomadas hasta el momento.
+
+## Cómo correrlo localmente
+
+```bash
+uv pip install -e ".[ml,api,frontend,dev]"
+
+# Backend (API):
+uvicorn backend.app.main:app --reload
+
+# Frontend (en otra terminal, con el backend ya corriendo):
+streamlit run frontend/streamlit_app/app.py
+```
+
+La predicción nunca calcula SHAP por defecto (`/predict`); pedir la
+explicación es una llamada aparte (`/explain`), más cara — ver
+[docs/adr/005-shap-endpoint-design.md](docs/adr/005-shap-endpoint-design.md).
+Ambos endpoints, y el dashboard de Streamlit, señalan explícitamente cuándo
+una predicción es menos confiable (ventana corta, o profundidad dentro de
+la zona de alto error ya documentada) en vez de devolverla sin avisar.
 
 ## Resultados y límites conocidos
 

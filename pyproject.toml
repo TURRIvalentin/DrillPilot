@@ -23,6 +23,10 @@ api = [
     "uvicorn[standard]",
     "pydantic>=2",
 ]
+frontend = [
+    "streamlit",
+    "requests",
+]
 dev = [
     "pytest",
     "pytest-cov",
@@ -30,6 +34,7 @@ dev = [
     "mypy",
     "pre-commit",
     "httpx",
+    "types-requests",
 ]
 
 [build-system]
@@ -37,7 +42,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["backend*", "ml*"]
+include = ["backend*", "ml*", "frontend*"]
 
 [tool.ruff]
 line-length = 100
